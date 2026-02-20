@@ -3,6 +3,9 @@ from sqlalchemy.orm import Session
 from jose import jwt, JWTError
 from fastapi.security import OAuth2PasswordBearer
 
+from app.models import user
+from app.models import match
+from app.models import odds
 from app.db.session import get_db, engine
 from app.db.base import Base
 from app.models.user import User
