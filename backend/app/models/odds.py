@@ -3,6 +3,7 @@ import uuid
 from app.db.base import Base
 from sqlalchemy import Column, Float, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 
 
 class Odds(Base):
@@ -15,3 +16,5 @@ class Odds(Base):
     home_win = Column(Float, nullable=False)
     draw = Column(Float, nullable=False)
     away_win = Column(Float, nullable=False)
+
+    match = relationship("Match", back_populates="odds")

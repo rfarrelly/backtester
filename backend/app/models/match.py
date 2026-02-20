@@ -4,6 +4,7 @@ from datetime import datetime
 from app.db.base import Base
 from sqlalchemy import Column, DateTime, Integer, String
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 
@@ -26,3 +27,7 @@ class Match(Base):
     result = Column(String, nullable=False)  # H, D, A
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    odds = relationship(
+        "Odds", back_populates="match", uselist=False, cascade="all, delete-orphan"
+    )
