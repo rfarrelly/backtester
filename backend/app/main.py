@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
 from fastapi.security import OAuth2PasswordBearer
+from app.services.csv_loader import load_csv
 
 from app.models import user
 from app.models import match
@@ -98,3 +99,9 @@ def get_current_user(
 @app.get("/me", response_model=UserOut)
 def read_current_user(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+@app.post("/load-data")
+def load_data(db: Session = Depends(get_db)):
+    load_csv("/app/app/data/sample.csv", db)
+    return {"status": "loaded"}
