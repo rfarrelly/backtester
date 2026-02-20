@@ -1,24 +1,21 @@
-from fastapi import FastAPI, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from jose import jwt, JWTError
-from fastapi.security import OAuth2PasswordBearer
-from app.services.csv_loader import load_csv
-
-from app.models import user
-from app.models import match
-from app.models import odds
-from app.db.session import get_db, engine
-from app.db.base import Base
-from app.models.user import User
-from app.schemas.user import UserCreate, UserLogin, UserOut
-from app.schemas.token import Token
 from app.core.security import (
+    ALGORITHM,
+    SECRET_KEY,
+    create_access_token,
     hash_password,
     verify_password,
-    create_access_token,
-    SECRET_KEY,
-    ALGORITHM,
 )
+from app.db.base import Base
+from app.db.session import engine, get_db
+from app.models import match, odds, user
+from app.models.user import User
+from app.schemas.token import Token
+from app.schemas.user import UserCreate, UserLogin, UserOut
+from app.services.csv_loader import load_csv
+from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
+from sqlalchemy.orm import Session
 
 app = FastAPI()
 

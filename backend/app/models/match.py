@@ -1,10 +1,10 @@
 import uuid
-from sqlalchemy import Column, String, Integer, DateTime
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.sql import func
 from datetime import datetime
 
 from app.db.base import Base
+from sqlalchemy import Column, DateTime, Integer, String
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.sql import func
 
 
 class Match(Base):
