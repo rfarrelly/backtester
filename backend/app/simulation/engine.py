@@ -1,69 +1,215 @@
+from itertools import combinations, groupby
+from operator import attrgetter
+
 from app.models.match import Match
 from app.models.odds import Odds
 from sqlalchemy.orm import Session
 
-from .models import SimpleBacktestRequest
+from .models import SimulationRequest
 
 
-def run_simple_backtest(db: Session, request: SimpleBacktestRequest):
-    query = (
-        db.query(Match, Odds)
-        .join(Odds, Odds.match_id == Match.id)
+class Bet:
+    def __init__(self, matches, stake, combined_odds, settles_at, selections):
+        self.matches = matches  # list[Match]
+        self.stake = stake
+        self.combined_odds = combined_odds
+        self.settles_at = settles_at
+        self.selections = selections  # {match_id: "H"/"D"/"A"}
+
+
+def run_simulation(db, request):
+    matches = (
+        db.query(Match)
+        .join(Match.odds)
         .filter(Match.league == request.league)
         .filter(Match.season == request.season)
         .order_by(Match.kickoff.asc())
+        .all()
     )
 
-    total_profit = 0.0
+    bankroll = request.starting_bankroll
+    active_bets = []
+    team_locks = {}
+
+    equity_curve = []
+    peak = bankroll
+    max_drawdown = 0
+
     total_bets = 0
-    wins = 0
-    losses = 0
-    results = []
 
-    for match, odds in query.all():
-        odds_map = {
-            "H": odds.home_win,
-            "D": odds.draw,
-            "A": odds.away_win,
-        }
+    for kickoff, group in groupby(matches, key=attrgetter("kickoff")):
+        batch = list(group)
 
-        selected_odds = odds_map.get(request.selection)
+        # -------------------
+        # 1️⃣ Settle matured bets
+        # -------------------
 
-        if selected_odds is None:
+        for bet in active_bets[:]:
+            if bet.settles_at <= kickoff:
+                win = True
+                for match in bet.matches:
+                    if match.result != bet.selections[match.id]:
+                        win = False
+                        break
+
+                if win:
+                    bankroll += bet.stake * bet.combined_odds
+                else:
+                    # stake already deducted
+                    pass
+
+                # unlock teams
+                for match in bet.matches:
+                    team_locks.pop(match.home_team, None)
+                    team_locks.pop(match.away_team, None)
+
+                active_bets.remove(bet)
+
+                # drawdown tracking
+                equity_curve.append(bankroll)
+                if bankroll > peak:
+                    peak = bankroll
+                drawdown = (peak - bankroll) / peak
+                max_drawdown = max(max_drawdown, drawdown)
+
+        # -------------------
+        # 2️⃣ Filter eligible matches
+        # -------------------
+        eligible = []
+
+        for match in batch:
+            if match.home_team not in team_locks and match.away_team not in team_locks:
+                eligible.append(match)
+
+        if len(eligible) < request.multiple_legs:
             continue
 
-        if request.min_odds and selected_odds < request.min_odds:
+        # -------------------
+        # 3️⃣ Build first valid combo only
+        # -------------------
+        combo = None
+
+        for candidate in combinations(eligible, request.multiple_legs):
+            teams = set()
+            valid = True
+
+            for match in candidate:
+                if match.home_team in teams or match.away_team in teams:
+                    valid = False
+                    break
+                teams.add(match.home_team)
+                teams.add(match.away_team)
+
+            if valid:
+                combo = candidate
+                break
+
+        if not combo:
             continue
 
-        total_bets += 1
+        # -------------------
+        # 4️⃣ Calculate combined odds + probabilities
+        # -------------------
+        combined_odds = 1
+        combined_prob = 1
+        selections = {}
 
-        if match.result == request.selection:
-            profit = (selected_odds - 1) * request.stake
-            wins += 1
-        else:
-            profit = -request.stake
-            losses += 1
+        for match in combo:
+            odds = {
+                "H": match.odds.home_win,
+                "D": match.odds.draw,
+                "A": match.odds.away_win,
+            }[request.selection]
 
-        total_profit += profit
+            if request.min_odds and odds < request.min_odds:
+                continue
 
-        results.append(
-            {
-                "match_id": str(match.id),
-                "kickoff": match.kickoff.isoformat(),
-                "home": match.home_team,
-                "away": match.away_team,
-                "odds": selected_odds,
-                "profit": round(profit, 2),
-            }
+            combined_odds *= odds
+            selections[match.id] = request.selection
+
+            # Kelly support (if model probs exist)
+            if request.staking_method == "kelly":
+                prob = {
+                    "H": match.odds.model_home_prob,
+                    "D": match.odds.model_draw_prob,
+                    "A": match.odds.model_away_prob,
+                }[request.selection]
+
+                if prob is None:
+                    combined_prob = None
+                else:
+                    combined_prob *= prob
+
+        # -------------------
+        # 5️⃣ Stake Calculation
+        # -------------------
+        stake = 0
+
+        if request.staking_method == "fixed":
+            stake = request.fixed_stake
+
+        elif request.staking_method == "percent":
+            stake = bankroll * request.percent_stake
+
+        elif request.staking_method == "kelly":
+            if combined_prob is None:
+                continue
+
+            b = combined_odds - 1
+            f = (b * combined_prob - (1 - combined_prob)) / b
+
+            if f <= 0:
+                continue
+
+            stake = bankroll * f * request.kelly_fraction
+
+        if stake <= 0 or stake > bankroll:
+            continue
+
+        # -------------------
+        # 6️⃣ Place Bet
+        # -------------------
+        bet = Bet(
+            matches=combo,
+            stake=stake,
+            combined_odds=combined_odds,
+            settles_at=max(m.kickoff for m in combo),
+            selections=selections,
         )
 
-    roi = (total_profit / (total_bets * request.stake)) * 100 if total_bets else 0
+        active_bets.append(bet)
+        bankroll -= stake
+        total_bets += 1
+
+        # lock teams
+        for match in combo:
+            team_locks[match.home_team] = match.id
+            team_locks[match.away_team] = match.id
+
+    # Final settlement of remaining bets
+    for bet in active_bets[:]:
+        win = all(match.result == bet.selections[match.id] for match in bet.matches)
+
+        if win:
+            bankroll += bet.stake * bet.combined_odds
+        else:
+            # stake already deducted
+            pass
+
+        active_bets.remove(bet)
+
+        equity_curve.append(bankroll)
+        if bankroll > peak:
+            peak = bankroll
+        drawdown = (peak - bankroll) / peak
+        max_drawdown = max(max_drawdown, drawdown)
+
+    roi = (bankroll - request.starting_bankroll) / request.starting_bankroll * 100
 
     return {
-        "total_bets": total_bets,
-        "wins": wins,
-        "losses": losses,
-        "profit": round(total_profit, 2),
+        "bets": active_bets,
+        "final_bankroll": round(bankroll, 2),
         "roi_percent": round(roi, 2),
-        "details": results,
+        "max_drawdown_percent": round(max_drawdown * 100, 2),
+        "total_bets": total_bets,
     }

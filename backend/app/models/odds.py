@@ -17,4 +17,8 @@ class Odds(Base):
     draw = Column(Float, nullable=False)
     away_win = Column(Float, nullable=False)
 
+    model_home_prob = Column(Float, nullable=True)
+    model_draw_prob = Column(Float, nullable=True)
+    model_away_prob = Column(Float, nullable=True)
+
     match = relationship("Match", back_populates="odds")

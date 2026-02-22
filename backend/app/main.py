@@ -12,8 +12,8 @@ from app.models.user import User
 from app.schemas.token import Token
 from app.schemas.user import UserCreate, UserLogin, UserOut
 from app.services.csv_loader import load_csv
-from app.simulation.engine import run_simple_backtest
-from app.simulation.models import SimpleBacktestRequest
+from app.simulation.engine import run_simulation
+from app.simulation.models import SimulationRequest
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
@@ -108,7 +108,7 @@ def load_data(db: Session = Depends(get_db)):
 
 @app.post("/simulate")
 def simulate(
-    request: SimpleBacktestRequest,
+    request: SimulationRequest,
     db: Session = Depends(get_db),
 ):
-    return run_simple_backtest(db, request)
+    return run_simulation(db, request)
