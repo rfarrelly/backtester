@@ -108,3 +108,5 @@ def test_fixed_singles_all_wins():
     assert result["final_bankroll"] == 1400
     assert result["roi_percent"] == 40.0
     assert result["max_drawdown_percent"] == 0.0
+    assert len(result["bets"]) == 4
+    assert all(b.is_win for b in result["bets"])

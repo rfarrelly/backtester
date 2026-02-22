@@ -8,6 +8,28 @@ from sqlalchemy.orm import Session
 from .models import SimulationRequest
 
 
+class SettledBet:
+    def __init__(
+        self,
+        matches,
+        stake,
+        combined_odds,
+        selections,
+        is_win,
+        return_amount,
+        profit,
+        settled_at,
+    ):
+        self.matches = matches
+        self.stake = stake
+        self.combined_odds = combined_odds
+        self.selections = selections
+        self.is_win = is_win
+        self.return_amount = return_amount
+        self.profit = profit
+        self.settled_at = settled_at
+
+
 class Bet:
     def __init__(self, matches, stake, combined_odds, settles_at, selections):
         self.matches = matches  # list[Match]
@@ -18,6 +40,8 @@ class Bet:
 
 
 def run_simulation(db, request):
+    settled_bets = []
+
     matches = (
         db.query(Match)
         .join(Match.odds)
@@ -46,31 +70,32 @@ def run_simulation(db, request):
 
         for bet in active_bets[:]:
             if bet.settles_at <= kickoff:
-                win = True
-                for match in bet.matches:
-                    if match.result != bet.selections[match.id]:
-                        win = False
-                        break
+                is_win = all(
+                    match.result == bet.selections[match.id] for match in bet.matches
+                )
 
-                if win:
-                    bankroll += bet.stake * bet.combined_odds
+                if is_win:
+                    return_amount = bet.stake * bet.combined_odds
                 else:
-                    # stake already deducted
-                    pass
+                    return_amount = 0
 
-                # unlock teams
-                for match in bet.matches:
-                    team_locks.pop(match.home_team, None)
-                    team_locks.pop(match.away_team, None)
+                profit = return_amount - bet.stake
+                bankroll += return_amount
+
+                settled_bets.append(
+                    SettledBet(
+                        matches=bet.matches,
+                        stake=bet.stake,
+                        combined_odds=bet.combined_odds,
+                        selections=bet.selections,
+                        is_win=is_win,
+                        return_amount=return_amount,
+                        profit=profit,
+                        settled_at=bet.settles_at,
+                    )
+                )
 
                 active_bets.remove(bet)
-
-                # drawdown tracking
-                equity_curve.append(bankroll)
-                if bankroll > peak:
-                    peak = bankroll
-                drawdown = (peak - bankroll) / peak
-                max_drawdown = max(max_drawdown, drawdown)
 
         # -------------------
         # 2️⃣ Filter eligible matches
@@ -188,26 +213,35 @@ def run_simulation(db, request):
 
     # Final settlement of remaining bets
     for bet in active_bets[:]:
-        win = all(match.result == bet.selections[match.id] for match in bet.matches)
+        is_win = all(match.result == bet.selections[match.id] for match in bet.matches)
 
-        if win:
-            bankroll += bet.stake * bet.combined_odds
+        if is_win:
+            return_amount = bet.stake * bet.combined_odds
         else:
-            # stake already deducted
-            pass
+            return_amount = 0
+
+        profit = return_amount - bet.stake
+        bankroll += return_amount
+
+        settled_bets.append(
+            SettledBet(
+                matches=bet.matches,
+                stake=bet.stake,
+                combined_odds=bet.combined_odds,
+                selections=bet.selections,
+                is_win=is_win,
+                return_amount=return_amount,
+                profit=profit,
+                settled_at=bet.settles_at,
+            )
+        )
 
         active_bets.remove(bet)
-
-        equity_curve.append(bankroll)
-        if bankroll > peak:
-            peak = bankroll
-        drawdown = (peak - bankroll) / peak
-        max_drawdown = max(max_drawdown, drawdown)
 
     roi = (bankroll - request.starting_bankroll) / request.starting_bankroll * 100
 
     return {
-        "bets": active_bets,
+        "bets": settled_bets,
         "final_bankroll": round(bankroll, 2),
         "roi_percent": round(roi, 2),
         "max_drawdown_percent": round(max_drawdown * 100, 2),
