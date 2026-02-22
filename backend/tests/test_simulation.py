@@ -110,3 +110,9 @@ def test_fixed_singles_all_wins():
     assert result["max_drawdown_percent"] == 0.0
     assert len(result["bets"]) == 4
     assert all(b.is_win for b in result["bets"])
+    assert result["total_wins"] == 4
+    assert result["total_losses"] == 0
+    assert result["strike_rate_percent"] == 100.0
+    assert result["total_profit"] == 400
+    assert result["average_odds"] == 2.0
+    assert result["longest_win_streak"] == 4

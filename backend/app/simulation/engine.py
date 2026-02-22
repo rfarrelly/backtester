@@ -240,10 +240,66 @@ def run_simulation(db, request):
 
     roi = (bankroll - request.starting_bankroll) / request.starting_bankroll * 100
 
+    metrics = calculate_metrics(
+        settled_bets,
+        request.starting_bankroll,
+        bankroll,
+    )
+
     return {
         "bets": settled_bets,
         "final_bankroll": round(bankroll, 2),
-        "roi_percent": round(roi, 2),
         "max_drawdown_percent": round(max_drawdown * 100, 2),
+        **metrics,
+    }
+
+
+def calculate_metrics(settled_bets, starting_bankroll, final_bankroll):
+    total_bets = len(settled_bets)
+    total_staked = sum(b.stake for b in settled_bets)
+    total_profit = sum(b.profit for b in settled_bets)
+
+    total_wins = sum(1 for b in settled_bets if b.is_win)
+    total_losses = total_bets - total_wins
+
+    strike_rate = (total_wins / total_bets * 100) if total_bets else 0
+
+    avg_odds = (
+        sum(b.combined_odds for b in settled_bets) / total_bets if total_bets else 0
+    )
+
+    roi = (
+        (final_bankroll - starting_bankroll) / starting_bankroll * 100
+        if starting_bankroll
+        else 0
+    )
+
+    # Streaks
+    longest_win_streak = 0
+    longest_loss_streak = 0
+    current_win_streak = 0
+    current_loss_streak = 0
+
+    for bet in settled_bets:
+        if bet.is_win:
+            current_win_streak += 1
+            current_loss_streak = 0
+        else:
+            current_loss_streak += 1
+            current_win_streak = 0
+
+        longest_win_streak = max(longest_win_streak, current_win_streak)
+        longest_loss_streak = max(longest_loss_streak, current_loss_streak)
+
+    return {
         "total_bets": total_bets,
+        "total_wins": total_wins,
+        "total_losses": total_losses,
+        "strike_rate_percent": round(strike_rate, 2),
+        "total_staked": round(total_staked, 2),
+        "total_profit": round(total_profit, 2),
+        "average_odds": round(avg_odds, 2),
+        "longest_win_streak": longest_win_streak,
+        "longest_loss_streak": longest_loss_streak,
+        "roi_percent": round(roi, 2),
     }
