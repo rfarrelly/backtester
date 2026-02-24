@@ -6,7 +6,7 @@ from pydantic import BaseModel
 class SimulationRequest(BaseModel):
     league: str
     season: str
-    selection: Literal["H", "D", "A"]
+    # selection: Literal["H", "D", "A"]
 
     staking_method: Literal["fixed", "percent", "kelly"]
 

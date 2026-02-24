@@ -39,7 +39,7 @@ class Bet:
         self.selections = selections  # {match_id: "H"/"D"/"A"}
 
 
-def run_simulation(db, request):
+def run_simulation(db, request, strategy):
     settled_bets = []
 
     matches = (
@@ -54,11 +54,7 @@ def run_simulation(db, request):
     bankroll = request.starting_bankroll
     active_bets = []
     team_locks = {}
-
-    equity_curve = []
-    peak = bankroll
     max_drawdown = 0
-
     total_bets = 0
 
     for kickoff, group in groupby(matches, key=attrgetter("kickoff")):
@@ -103,8 +99,20 @@ def run_simulation(db, request):
         eligible = []
 
         for match in batch:
-            if match.home_team not in team_locks and match.away_team not in team_locks:
-                eligible.append(match)
+            # Team lock check
+            if match.home_team in team_locks or match.away_team in team_locks:
+                continue
+
+            # Strategy decision
+            decision = strategy.evaluate(match, context={})
+
+            if not decision.place_bet:
+                continue
+
+            # Attach decision to match temporarily
+            match._strategy_selection = decision.selection
+
+            eligible.append(match)
 
         if len(eligible) < request.multiple_legs:
             continue
@@ -135,35 +143,43 @@ def run_simulation(db, request):
         # -------------------
         # 4️⃣ Calculate combined odds + probabilities
         # -------------------
+        # -------------------
+
         combined_odds = 1
         combined_prob = 1
         selections = {}
 
         for match in combo:
+            selection = match._strategy_selection
+
             odds = {
                 "H": match.odds.home_win,
                 "D": match.odds.draw,
                 "A": match.odds.away_win,
-            }[request.selection]
+            }[selection]
 
             if request.min_odds and odds < request.min_odds:
-                continue
+                combined_odds = None
+                break
 
             combined_odds *= odds
-            selections[match.id] = request.selection
+            selections[match.id] = selection
 
-            # Kelly support (if model probs exist)
+            # Kelly support
             if request.staking_method == "kelly":
                 prob = {
                     "H": match.odds.model_home_prob,
                     "D": match.odds.model_draw_prob,
                     "A": match.odds.model_away_prob,
-                }[request.selection]
+                }[selection]
 
                 if prob is None:
                     combined_prob = None
                 else:
                     combined_prob *= prob
+
+        if combined_odds is None:
+            continue
 
         # -------------------
         # 5️⃣ Stake Calculation
@@ -237,8 +253,6 @@ def run_simulation(db, request):
         )
 
         active_bets.remove(bet)
-
-    roi = (bankroll - request.starting_bankroll) / request.starting_bankroll * 100
 
     metrics = calculate_metrics(
         settled_bets,
