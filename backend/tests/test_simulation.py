@@ -159,3 +159,60 @@ def test_edge_strategy_blocks_bet_when_edge_too_small():
 
     assert result["total_bets"] == 0
     assert result["final_bankroll"] == 1000
+
+
+def test_kelly_single_win():
+    matches = [FakeMatch("A", "B", datetime(2025, 1, 1, 15, 0), "H", model_home=0.6)]
+
+    db = FakeDB(matches)
+
+    strategy = EdgeStrategy(selection="H", min_edge=0.0)
+
+    request = SimulationRequest(
+        league="TestLeague",
+        season="2025",
+        starting_bankroll=1000,
+        staking_method="kelly",
+        fixed_stake=None,
+        percent_stake=None,
+        kelly_fraction=1.0,  # full Kelly
+        multiple_legs=1,
+        min_odds=None,
+    )
+
+    result = run_simulation(db, request, strategy)
+
+    assert result["total_bets"] == 1
+    assert result["final_bankroll"] == 1200.0
+    assert result["total_profit"] == 200.0
+    assert result["roi_percent"] == 20.0
+
+
+def test_two_leg_accumulator_all_wins():
+    matches = [
+        FakeMatch("A", "B", datetime(2025, 1, 1, 15, 0), "H"),
+        FakeMatch("C", "D", datetime(2025, 1, 1, 15, 0), "H"),
+    ]
+
+    db = FakeDB(matches)
+
+    strategy = AlwaysHomeStrategy()
+
+    request = SimulationRequest(
+        league="TestLeague",
+        season="2025",
+        starting_bankroll=1000,
+        staking_method="fixed",
+        fixed_stake=100,
+        percent_stake=None,
+        kelly_fraction=None,
+        multiple_legs=2,
+        min_odds=None,
+    )
+
+    result = run_simulation(db, request, strategy)
+
+    assert result["total_bets"] == 1
+    assert result["final_bankroll"] == 1300.0
+    assert result["total_profit"] == 300.0
+    assert result["roi_percent"] == 30.0
