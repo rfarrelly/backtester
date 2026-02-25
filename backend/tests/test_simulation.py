@@ -96,7 +96,7 @@ def test_fixed_singles_all_wins():
         strategy_type="home",
     )
 
-    engine = SimulationEngine(db, request, strategy)
+    engine = SimulationEngine(matches, request, strategy)
     result = engine.run()
 
     assert result["total_bets"] == 4
@@ -133,7 +133,7 @@ def test_edge_strategy_places_bet():
         strategy_type="edge",
     )
 
-    engine = SimulationEngine(db, request, strategy)
+    engine = SimulationEngine(matches, request, strategy)
     result = engine.run()
 
     assert result["total_bets"] == 1
@@ -160,7 +160,7 @@ def test_edge_strategy_blocks_bet_when_edge_too_small():
         strategy_type="edge",
     )
 
-    engine = SimulationEngine(db, request, strategy)
+    engine = SimulationEngine(matches, request, strategy)
     result = engine.run()
 
     assert result["total_bets"] == 0
@@ -187,7 +187,7 @@ def test_kelly_single_win():
         strategy_type="edge",
     )
 
-    engine = SimulationEngine(db, request, strategy)
+    engine = SimulationEngine(matches, request, strategy)
     result = engine.run()
 
     assert result["total_bets"] == 1
@@ -219,7 +219,7 @@ def test_two_leg_accumulator_all_wins():
         strategy_type="home",
     )
 
-    engine = SimulationEngine(db, request, strategy)
+    engine = SimulationEngine(matches, request, strategy)
     result = engine.run()
 
     assert result["total_bets"] == 1

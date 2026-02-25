@@ -120,8 +120,8 @@ def build_valid_combo(eligible, multiple_legs):
 
 
 class SimulationEngine:
-    def __init__(self, db, request, strategy):
-        self.db = db
+    def __init__(self, matches, request, strategy):
+        self.matches = matches
         self.request = request
         self.strategy = strategy
 
@@ -141,7 +141,7 @@ class SimulationEngine:
     # --------------------------------------------------
 
     def run(self):
-        matches = self._load_matches()
+        matches = self.matches
 
         for kickoff, group in groupby(matches, key=attrgetter("kickoff")):
             batch = list(group)
