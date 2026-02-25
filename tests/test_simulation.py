@@ -1,9 +1,9 @@
 import uuid
 from datetime import datetime
 
-from app.simulation.engine import SimulationEngine
-from app.simulation.models import SimulationRequest
-from app.simulation.strategy import AlwaysHomeStrategy, EdgeStrategy
+from app.domain.simulation.engine import SimulationEngine
+from app.domain.simulation.models import SimulationRequest
+from app.domain.simulation.strategy import AlwaysHomeStrategy, EdgeStrategy
 
 # -------------------------
 # Fake ORM Models

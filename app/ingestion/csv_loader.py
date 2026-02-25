@@ -3,8 +3,8 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
-from app.models.match import Match
-from app.models.odds import Odds
+from app.infrastructure.persistence_models.match import Match
+from app.infrastructure.persistence_models.odds import Odds
 
 
 def load_csv(file_path: str, db: Session):

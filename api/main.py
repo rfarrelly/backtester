@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 
 from api.routes import auth, data, simulation, users
-from app.db.base import Base
-from app.db.session import engine
+from app.infrastructure.db.base import Base
+from app.infrastructure.db.session import engine
 
 app = FastAPI()
 

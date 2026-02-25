@@ -6,8 +6,8 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
-from app.db.session import get_db
-from app.models.user import User
+from app.infrastructure.db.session import get_db
+from app.infrastructure.persistence_models.user import User
 from app.schemas.token import Token
 from app.schemas.user import UserCreate, UserLogin, UserOut
 

@@ -4,7 +4,7 @@ from sqlalchemy import Column, Float, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
-from app.db.base import Base
+from app.infrastructure.db.base import Base
 
 
 class Odds(Base):

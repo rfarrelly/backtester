@@ -1,10 +1,10 @@
-from app.db.session import SessionLocal
-from app.domain.infrastructure.repositories.match_repository import (
+from app.domain.simulation.models import SimulationRequest
+from app.domain.simulation.strategy import EdgeStrategy
+from app.infrastructure.db.session import SessionLocal
+from app.infrastructure.repositories.match_repository import (
     MatchRepository,
 )
 from app.services.parameter_sweep import ParameterSweep
-from app.simulation.models import SimulationRequest
-from app.simulation.strategy import EdgeStrategy
 
 
 def edge_strategy_factory(min_edge):

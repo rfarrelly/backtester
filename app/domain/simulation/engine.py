@@ -3,9 +3,9 @@ from operator import attrgetter
 
 from sqlalchemy.orm import Session
 
-from app.models.match import Match
-from app.models.odds import Odds
-from app.simulation.context import RollingContext
+from app.domain.simulation.context import RollingContext
+from app.infrastructure.persistence_models.match import Match
+from app.infrastructure.persistence_models.odds import Odds
 
 from .models import SimulationRequest
 

@@ -1,7 +1,7 @@
 import copy
 import itertools
 
-from app.simulation.engine import SimulationEngine
+from app.domain.simulation.engine import SimulationEngine
 
 
 class ParameterSweep:

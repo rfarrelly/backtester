@@ -1,7 +1,7 @@
-from app.domain.infrastructure.repositories.match_repository import MatchRepository
-from app.simulation.engine import SimulationEngine
-from app.simulation.models import SimulationRequest
-from app.simulation.strategy import AlwaysHomeStrategy, EdgeStrategy
+from app.domain.simulation.engine import SimulationEngine
+from app.domain.simulation.models import SimulationRequest
+from app.domain.simulation.strategy import AlwaysHomeStrategy, EdgeStrategy
+from app.infrastructure.repositories.match_repository import MatchRepository
 
 
 def build_strategy_from_request(request: SimulationRequest):
@@ -32,7 +32,5 @@ def simulate_strategy(db, request):
         request=request,
         strategy=strategy,
     )
-
-    results = engine.run()
 
     return engine.run()
