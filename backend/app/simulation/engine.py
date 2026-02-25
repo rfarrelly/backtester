@@ -3,6 +3,7 @@ from operator import attrgetter
 
 from app.models.match import Match
 from app.models.odds import Odds
+from app.simulation.context import RollingContext
 from sqlalchemy.orm import Session
 
 from .models import SimulationRequest
@@ -39,7 +40,87 @@ class Bet:
         self.selections = selections  # {match_id: "H"/"D"/"A"}
 
 
+def settle_matured_bets(active_bets, kickoff, bankroll, team_locks, settle_all=False):
+    settled = []
+
+    for bet in active_bets[:]:
+        if settle_all or bet.settles_at <= kickoff:
+            is_win = all(
+                match.result == bet.selections[match.id] for match in bet.matches
+            )
+
+            if is_win:
+                return_amount = bet.stake * bet.combined_odds
+            else:
+                return_amount = 0
+
+            profit = return_amount - bet.stake
+            bankroll += return_amount
+
+            settled.append(
+                SettledBet(
+                    matches=bet.matches,
+                    stake=bet.stake,
+                    combined_odds=bet.combined_odds,
+                    selections=bet.selections,
+                    is_win=is_win,
+                    return_amount=return_amount,
+                    profit=profit,
+                    settled_at=bet.settles_at,
+                )
+            )
+
+            active_bets.remove(bet)
+
+            for match in bet.matches:
+                team_locks.pop(match.home_team, None)
+                team_locks.pop(match.away_team, None)
+
+    return bankroll, settled
+
+
+def calculate_stake(request, bankroll, combined_odds, combined_prob):
+    if request.staking_method == "fixed":
+        return request.fixed_stake
+
+    if request.staking_method == "percent":
+        return bankroll * request.percent_stake
+
+    if request.staking_method == "kelly":
+        if combined_prob is None:
+            return None
+
+        b = combined_odds - 1
+        f = (b * combined_prob - (1 - combined_prob)) / b
+
+        if f <= 0:
+            return None
+
+        return bankroll * f * request.kelly_fraction
+
+    return None
+
+
+def build_valid_combo(eligible, multiple_legs):
+    for candidate in combinations(eligible, multiple_legs):
+        teams = set()
+        valid = True
+
+        for match in candidate:
+            if match.home_team in teams or match.away_team in teams:
+                valid = False
+                break
+            teams.add(match.home_team)
+            teams.add(match.away_team)
+
+        if valid:
+            return candidate
+
+    return None
+
+
 def run_simulation(db, request, strategy):
+    context = RollingContext(window_size=5)
     settled_bets = []
 
     matches = (
@@ -64,34 +145,10 @@ def run_simulation(db, request, strategy):
         # 1️⃣ Settle matured bets
         # -------------------
 
-        for bet in active_bets[:]:
-            if bet.settles_at <= kickoff:
-                is_win = all(
-                    match.result == bet.selections[match.id] for match in bet.matches
-                )
-
-                if is_win:
-                    return_amount = bet.stake * bet.combined_odds
-                else:
-                    return_amount = 0
-
-                profit = return_amount - bet.stake
-                bankroll += return_amount
-
-                settled_bets.append(
-                    SettledBet(
-                        matches=bet.matches,
-                        stake=bet.stake,
-                        combined_odds=bet.combined_odds,
-                        selections=bet.selections,
-                        is_win=is_win,
-                        return_amount=return_amount,
-                        profit=profit,
-                        settled_at=bet.settles_at,
-                    )
-                )
-
-                active_bets.remove(bet)
+        bankroll, newly_settled = settle_matured_bets(
+            active_bets, kickoff, bankroll, team_locks
+        )
+        settled_bets.extend(newly_settled)
 
         # -------------------
         # 2️⃣ Filter eligible matches
@@ -104,7 +161,7 @@ def run_simulation(db, request, strategy):
                 continue
 
             # Strategy decision
-            decision = strategy.evaluate(match, context={})
+            decision = strategy.evaluate(match, context=context)
 
             if not decision.place_bet:
                 continue
@@ -120,24 +177,11 @@ def run_simulation(db, request, strategy):
         # -------------------
         # 3️⃣ Build first valid combo only
         # -------------------
-        combo = None
-
-        for candidate in combinations(eligible, request.multiple_legs):
-            teams = set()
-            valid = True
-
-            for match in candidate:
-                if match.home_team in teams or match.away_team in teams:
-                    valid = False
-                    break
-                teams.add(match.home_team)
-                teams.add(match.away_team)
-
-            if valid:
-                combo = candidate
-                break
+        combo = build_valid_combo(eligible, request.multiple_legs)
 
         if not combo:
+            for match in batch:
+                context.update(match)
             continue
 
         # -------------------
@@ -184,27 +228,14 @@ def run_simulation(db, request, strategy):
         # -------------------
         # 5️⃣ Stake Calculation
         # -------------------
-        stake = 0
+        stake = calculate_stake(
+            request,
+            bankroll,
+            combined_odds,
+            combined_prob,
+        )
 
-        if request.staking_method == "fixed":
-            stake = request.fixed_stake
-
-        elif request.staking_method == "percent":
-            stake = bankroll * request.percent_stake
-
-        elif request.staking_method == "kelly":
-            if combined_prob is None:
-                continue
-
-            b = combined_odds - 1
-            f = (b * combined_prob - (1 - combined_prob)) / b
-
-            if f <= 0:
-                continue
-
-            stake = bankroll * f * request.kelly_fraction
-
-        if stake <= 0 or stake > bankroll:
+        if stake is None or stake <= 0 or stake > bankroll:
             continue
 
         # -------------------
@@ -227,32 +258,16 @@ def run_simulation(db, request, strategy):
             team_locks[match.home_team] = match.id
             team_locks[match.away_team] = match.id
 
+        for match in batch:
+            context.update(match)
+
     # Final settlement of remaining bets
-    for bet in active_bets[:]:
-        is_win = all(match.result == bet.selections[match.id] for match in bet.matches)
-
-        if is_win:
-            return_amount = bet.stake * bet.combined_odds
-        else:
-            return_amount = 0
-
-        profit = return_amount - bet.stake
-        bankroll += return_amount
-
-        settled_bets.append(
-            SettledBet(
-                matches=bet.matches,
-                stake=bet.stake,
-                combined_odds=bet.combined_odds,
-                selections=bet.selections,
-                is_win=is_win,
-                return_amount=return_amount,
-                profit=profit,
-                settled_at=bet.settles_at,
-            )
+    final_kickoff = matches[-1].kickoff if matches else None
+    if final_kickoff:
+        bankroll, newly_settled = settle_matured_bets(
+            active_bets, kickoff, bankroll, team_locks, settle_all=True
         )
-
-        active_bets.remove(bet)
+        settled_bets.extend(newly_settled)
 
     metrics = calculate_metrics(
         settled_bets,
