@@ -12,12 +12,13 @@ from app.models.user import User
 from app.schemas.token import Token
 from app.schemas.user import UserCreate, UserLogin, UserOut
 from app.services.csv_loader import load_csv
-from app.simulation.engine import run_simulation
 from app.simulation.models import SimulationRequest
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
+
+from backend.app.services.strategy_builder import simulate_strategy
 
 app = FastAPI()
 
@@ -107,8 +108,5 @@ def load_data(db: Session = Depends(get_db)):
 
 
 @app.post("/simulate")
-def simulate(
-    request: SimulationRequest,
-    db: Session = Depends(get_db),
-):
-    return run_simulation(db, request)
+def simulate(request: SimulationRequest, db: Session = Depends(get_db)):
+    return simulate_strategy(db, request)

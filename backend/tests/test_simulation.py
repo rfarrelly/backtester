@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from app.simulation.engine import run_simulation
+from app.simulation.engine import SimulationEngine
 from app.simulation.models import SimulationRequest
 from app.simulation.strategy import AlwaysHomeStrategy, EdgeStrategy
 
@@ -93,9 +93,11 @@ def test_fixed_singles_all_wins():
         kelly_fraction=None,
         multiple_legs=1,
         min_odds=None,
+        strategy_type="home",
     )
 
-    result = run_simulation(db, request, strategy)
+    engine = SimulationEngine(db, request, strategy)
+    result = engine.run()
 
     assert result["total_bets"] == 4
     assert result["final_bankroll"] == 1400
@@ -128,9 +130,11 @@ def test_edge_strategy_places_bet():
         kelly_fraction=None,
         multiple_legs=1,
         min_odds=None,
+        strategy_type="edge",
     )
 
-    result = run_simulation(db, request, strategy)
+    engine = SimulationEngine(db, request, strategy)
+    result = engine.run()
 
     assert result["total_bets"] == 1
     assert result["final_bankroll"] == 1100
@@ -153,9 +157,11 @@ def test_edge_strategy_blocks_bet_when_edge_too_small():
         kelly_fraction=None,
         multiple_legs=1,
         min_odds=None,
+        strategy_type="edge",
     )
 
-    result = run_simulation(db, request, strategy)
+    engine = SimulationEngine(db, request, strategy)
+    result = engine.run()
 
     assert result["total_bets"] == 0
     assert result["final_bankroll"] == 1000
@@ -178,9 +184,11 @@ def test_kelly_single_win():
         kelly_fraction=1.0,  # full Kelly
         multiple_legs=1,
         min_odds=None,
+        strategy_type="edge",
     )
 
-    result = run_simulation(db, request, strategy)
+    engine = SimulationEngine(db, request, strategy)
+    result = engine.run()
 
     assert result["total_bets"] == 1
     assert result["final_bankroll"] == 1200.0
@@ -208,9 +216,11 @@ def test_two_leg_accumulator_all_wins():
         kelly_fraction=None,
         multiple_legs=2,
         min_odds=None,
+        strategy_type="home",
     )
 
-    result = run_simulation(db, request, strategy)
+    engine = SimulationEngine(db, request, strategy)
+    result = engine.run()
 
     assert result["total_bets"] == 1
     assert result["final_bankroll"] == 1300.0

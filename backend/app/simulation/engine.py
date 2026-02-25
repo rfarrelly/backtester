@@ -119,42 +119,84 @@ def build_valid_combo(eligible, multiple_legs):
     return None
 
 
-def run_simulation(db, request, strategy):
-    context = RollingContext(window_size=5)
-    settled_bets = []
+class SimulationEngine:
+    def __init__(self, db, request, strategy):
+        self.db = db
+        self.request = request
+        self.strategy = strategy
 
-    matches = (
-        db.query(Match)
-        .join(Match.odds)
-        .filter(Match.league == request.league)
-        .filter(Match.season == request.season)
-        .order_by(Match.kickoff.asc())
-        .all()
-    )
+        # Simulation state
+        self.context = RollingContext(window_size=5)
+        self.bankroll = request.starting_bankroll
+        self.active_bets = []
+        self.settled_bets = []
+        self.team_locks = {}
 
-    bankroll = request.starting_bankroll
-    active_bets = []
-    team_locks = {}
-    max_drawdown = 0
-    total_bets = 0
+        # Metrics tracking
+        self.max_drawdown = 0
+        self.peak_bankroll = self.bankroll
 
-    for kickoff, group in groupby(matches, key=attrgetter("kickoff")):
-        batch = list(group)
+    # --------------------------------------------------
+    # Public API
+    # --------------------------------------------------
 
-        # 1️⃣ Settle matured bets
-        bankroll, newly_settled = settle_matured_bets(
-            active_bets, kickoff, bankroll, team_locks
+    def run(self):
+        matches = self._load_matches()
+
+        for kickoff, group in groupby(matches, key=attrgetter("kickoff")):
+            batch = list(group)
+
+            self._settle_matured(kickoff)
+            self._process_kickoff_batch(batch)
+
+        self._final_settlement(matches)
+
+        metrics = calculate_metrics(
+            self.settled_bets,
+            self.request.starting_bankroll,
+            self.bankroll,
         )
-        settled_bets.extend(newly_settled)
 
-        # 2️⃣ Evaluate matches
+        return {
+            "bets": self.settled_bets,
+            "final_bankroll": round(self.bankroll, 2),
+            "max_drawdown_percent": round(self.max_drawdown * 100, 2),
+            **metrics,
+        }
+
+    # --------------------------------------------------
+    # Core Steps
+    # --------------------------------------------------
+
+    def _load_matches(self):
+        return (
+            self.db.query(Match)
+            .join(Match.odds)
+            .filter(Match.league == self.request.league)
+            .filter(Match.season == self.request.season)
+            .order_by(Match.kickoff.asc())
+            .all()
+        )
+
+    def _settle_matured(self, kickoff):
+        self.bankroll, newly_settled = settle_matured_bets(
+            self.active_bets,
+            kickoff,
+            self.bankroll,
+            self.team_locks,
+        )
+
+        self.settled_bets.extend(newly_settled)
+        self._update_drawdown()
+
+    def _process_kickoff_batch(self, batch):
         eligible = []
 
         for match in batch:
-            if match.home_team in team_locks or match.away_team in team_locks:
+            if match.home_team in self.team_locks or match.away_team in self.team_locks:
                 continue
 
-            decision = strategy.evaluate(match, context=context)
+            decision = self.strategy.evaluate(match, context=self.context)
 
             if not decision.place_bet:
                 continue
@@ -162,93 +204,100 @@ def run_simulation(db, request, strategy):
             match._strategy_selection = decision.selection
             eligible.append(match)
 
-        # 3️⃣ Attempt to place bet (conditionally)
-        if len(eligible) >= request.multiple_legs:
-            combo = build_valid_combo(eligible, request.multiple_legs)
+        if len(eligible) >= self.request.multiple_legs:
+            combo = build_valid_combo(eligible, self.request.multiple_legs)
 
             if combo:
-                combined_odds = 1
-                combined_prob = 1
-                selections = {}
-                valid_combo = True
+                self._attempt_place_bet(combo)
 
-                for match in combo:
-                    selection = match._strategy_selection
-
-                    odds = {
-                        "H": match.odds.home_win,
-                        "D": match.odds.draw,
-                        "A": match.odds.away_win,
-                    }[selection]
-
-                    if request.min_odds and odds < request.min_odds:
-                        valid_combo = False
-                        break
-
-                    combined_odds *= odds
-                    selections[match.id] = selection
-
-                    if request.staking_method == "kelly":
-                        prob = {
-                            "H": match.odds.model_home_prob,
-                            "D": match.odds.model_draw_prob,
-                            "A": match.odds.model_away_prob,
-                        }[selection]
-
-                        if prob is None:
-                            valid_combo = False
-                            break
-
-                        combined_prob *= prob
-
-                if valid_combo:
-                    stake = calculate_stake(
-                        request,
-                        bankroll,
-                        combined_odds,
-                        combined_prob,
-                    )
-
-                    if stake is not None and 0 < stake <= bankroll:
-                        bet = Bet(
-                            matches=combo,
-                            stake=stake,
-                            combined_odds=combined_odds,
-                            settles_at=max(m.kickoff for m in combo),
-                            selections=selections,
-                        )
-
-                        active_bets.append(bet)
-                        bankroll -= stake
-
-                        for match in combo:
-                            team_locks[match.home_team] = match.id
-                            team_locks[match.away_team] = match.id
-
-        # 4️⃣ ALWAYS update context
+        # ALWAYS update context
         for match in batch:
-            context.update(match)
+            self.context.update(match)
 
-    # Final settlement of remaining bets
-    final_kickoff = matches[-1].kickoff if matches else None
-    if final_kickoff:
-        bankroll, newly_settled = settle_matured_bets(
-            active_bets, final_kickoff, bankroll, team_locks, settle_all=True
+    def _attempt_place_bet(self, combo):
+        combined_odds = 1
+        combined_prob = 1
+        selections = {}
+
+        for match in combo:
+            selection = match._strategy_selection
+
+            odds = {
+                "H": match.odds.home_win,
+                "D": match.odds.draw,
+                "A": match.odds.away_win,
+            }[selection]
+
+            if self.request.min_odds and odds < self.request.min_odds:
+                return
+
+            combined_odds *= odds
+            selections[match.id] = selection
+
+            if self.request.staking_method == "kelly":
+                prob = {
+                    "H": match.odds.model_home_prob,
+                    "D": match.odds.model_draw_prob,
+                    "A": match.odds.model_away_prob,
+                }[selection]
+
+                if prob is None:
+                    return
+
+                combined_prob *= prob
+
+        stake = calculate_stake(
+            self.request,
+            self.bankroll,
+            combined_odds,
+            combined_prob,
         )
-        settled_bets.extend(newly_settled)
 
-    metrics = calculate_metrics(
-        settled_bets,
-        request.starting_bankroll,
-        bankroll,
-    )
+        if stake is None or stake <= 0 or stake > self.bankroll:
+            return
 
-    return {
-        "bets": settled_bets,
-        "final_bankroll": round(bankroll, 2),
-        "max_drawdown_percent": round(max_drawdown * 100, 2),
-        **metrics,
-    }
+        bet = Bet(
+            matches=combo,
+            stake=stake,
+            combined_odds=combined_odds,
+            settles_at=max(m.kickoff for m in combo),
+            selections=selections,
+        )
+
+        self.active_bets.append(bet)
+        self.bankroll -= stake
+
+        for match in combo:
+            self.team_locks[match.home_team] = match.id
+            self.team_locks[match.away_team] = match.id
+
+    def _final_settlement(self, matches):
+        if not matches:
+            return
+
+        final_kickoff = matches[-1].kickoff
+
+        self.bankroll, newly_settled = settle_matured_bets(
+            self.active_bets,
+            final_kickoff,
+            self.bankroll,
+            self.team_locks,
+            settle_all=True,
+        )
+
+        self.settled_bets.extend(newly_settled)
+        self._update_drawdown()
+
+    # --------------------------------------------------
+    # Risk Tracking
+    # --------------------------------------------------
+
+    def _update_drawdown(self):
+        if self.bankroll > self.peak_bankroll:
+            self.peak_bankroll = self.bankroll
+
+        drawdown = (self.peak_bankroll - self.bankroll) / self.peak_bankroll
+        self.max_drawdown = max(self.max_drawdown, drawdown)
 
 
 def calculate_metrics(settled_bets, starting_bankroll, final_bankroll):

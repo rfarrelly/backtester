@@ -6,8 +6,9 @@ from pydantic import BaseModel
 class SimulationRequest(BaseModel):
     league: str
     season: str
-    # selection: Literal["H", "D", "A"]
+    strategy_type: str
 
+    selection: Literal["H", "D", "A"] | None = None
     staking_method: Literal["fixed", "percent", "kelly"]
 
     fixed_stake: float | None = None
@@ -18,3 +19,4 @@ class SimulationRequest(BaseModel):
     multiple_legs: int = 1  # 1 = singles, 2 = double, etc.
 
     min_odds: float | None = None
+    min_edge: float | None = None
