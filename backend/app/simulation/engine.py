@@ -141,123 +141,91 @@ def run_simulation(db, request, strategy):
     for kickoff, group in groupby(matches, key=attrgetter("kickoff")):
         batch = list(group)
 
-        # -------------------
         # 1️⃣ Settle matured bets
-        # -------------------
-
         bankroll, newly_settled = settle_matured_bets(
             active_bets, kickoff, bankroll, team_locks
         )
         settled_bets.extend(newly_settled)
 
-        # -------------------
-        # 2️⃣ Filter eligible matches
-        # -------------------
+        # 2️⃣ Evaluate matches
         eligible = []
 
         for match in batch:
-            # Team lock check
             if match.home_team in team_locks or match.away_team in team_locks:
                 continue
 
-            # Strategy decision
             decision = strategy.evaluate(match, context=context)
 
             if not decision.place_bet:
                 continue
 
-            # Attach decision to match temporarily
             match._strategy_selection = decision.selection
-
             eligible.append(match)
 
-        if len(eligible) < request.multiple_legs:
-            continue
+        # 3️⃣ Attempt to place bet (conditionally)
+        if len(eligible) >= request.multiple_legs:
+            combo = build_valid_combo(eligible, request.multiple_legs)
 
-        # -------------------
-        # 3️⃣ Build first valid combo only
-        # -------------------
-        combo = build_valid_combo(eligible, request.multiple_legs)
+            if combo:
+                combined_odds = 1
+                combined_prob = 1
+                selections = {}
+                valid_combo = True
 
-        if not combo:
-            for match in batch:
-                context.update(match)
-            continue
+                for match in combo:
+                    selection = match._strategy_selection
 
-        # -------------------
-        # 4️⃣ Calculate combined odds + probabilities
-        # -------------------
-        # -------------------
+                    odds = {
+                        "H": match.odds.home_win,
+                        "D": match.odds.draw,
+                        "A": match.odds.away_win,
+                    }[selection]
 
-        combined_odds = 1
-        combined_prob = 1
-        selections = {}
+                    if request.min_odds and odds < request.min_odds:
+                        valid_combo = False
+                        break
 
-        for match in combo:
-            selection = match._strategy_selection
+                    combined_odds *= odds
+                    selections[match.id] = selection
 
-            odds = {
-                "H": match.odds.home_win,
-                "D": match.odds.draw,
-                "A": match.odds.away_win,
-            }[selection]
+                    if request.staking_method == "kelly":
+                        prob = {
+                            "H": match.odds.model_home_prob,
+                            "D": match.odds.model_draw_prob,
+                            "A": match.odds.model_away_prob,
+                        }[selection]
 
-            if request.min_odds and odds < request.min_odds:
-                combined_odds = None
-                break
+                        if prob is None:
+                            valid_combo = False
+                            break
 
-            combined_odds *= odds
-            selections[match.id] = selection
+                        combined_prob *= prob
 
-            # Kelly support
-            if request.staking_method == "kelly":
-                prob = {
-                    "H": match.odds.model_home_prob,
-                    "D": match.odds.model_draw_prob,
-                    "A": match.odds.model_away_prob,
-                }[selection]
+                if valid_combo:
+                    stake = calculate_stake(
+                        request,
+                        bankroll,
+                        combined_odds,
+                        combined_prob,
+                    )
 
-                if prob is None:
-                    combined_prob = None
-                else:
-                    combined_prob *= prob
+                    if stake is not None and 0 < stake <= bankroll:
+                        bet = Bet(
+                            matches=combo,
+                            stake=stake,
+                            combined_odds=combined_odds,
+                            settles_at=max(m.kickoff for m in combo),
+                            selections=selections,
+                        )
 
-        if combined_odds is None:
-            continue
+                        active_bets.append(bet)
+                        bankroll -= stake
 
-        # -------------------
-        # 5️⃣ Stake Calculation
-        # -------------------
-        stake = calculate_stake(
-            request,
-            bankroll,
-            combined_odds,
-            combined_prob,
-        )
+                        for match in combo:
+                            team_locks[match.home_team] = match.id
+                            team_locks[match.away_team] = match.id
 
-        if stake is None or stake <= 0 or stake > bankroll:
-            continue
-
-        # -------------------
-        # 6️⃣ Place Bet
-        # -------------------
-        bet = Bet(
-            matches=combo,
-            stake=stake,
-            combined_odds=combined_odds,
-            settles_at=max(m.kickoff for m in combo),
-            selections=selections,
-        )
-
-        active_bets.append(bet)
-        bankroll -= stake
-        total_bets += 1
-
-        # lock teams
-        for match in combo:
-            team_locks[match.home_team] = match.id
-            team_locks[match.away_team] = match.id
-
+        # 4️⃣ ALWAYS update context
         for match in batch:
             context.update(match)
 
@@ -265,7 +233,7 @@ def run_simulation(db, request, strategy):
     final_kickoff = matches[-1].kickoff if matches else None
     if final_kickoff:
         bankroll, newly_settled = settle_matured_bets(
-            active_bets, kickoff, bankroll, team_locks, settle_all=True
+            active_bets, final_kickoff, bankroll, team_locks, settle_all=True
         )
         settled_bets.extend(newly_settled)
 
