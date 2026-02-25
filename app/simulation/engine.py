@@ -1,10 +1,11 @@
 from itertools import combinations, groupby
 from operator import attrgetter
 
+from sqlalchemy.orm import Session
+
 from app.models.match import Match
 from app.models.odds import Odds
 from app.simulation.context import RollingContext
-from sqlalchemy.orm import Session
 
 from .models import SimulationRequest
 

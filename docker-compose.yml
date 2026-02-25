@@ -22,7 +22,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: backend/Dockerfile
+      dockerfile: api/Dockerfile
     container_name: backtester_api
     restart: always
     env_file:
@@ -33,7 +33,7 @@ services:
       - postgres
       - redis
     volumes:
-      - ./backend/app:/app/app
+      - ./app:/app/app
 
   worker:
     build:

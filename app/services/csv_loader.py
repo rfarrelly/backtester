@@ -1,9 +1,10 @@
 import csv
 from datetime import datetime
 
+from sqlalchemy.orm import Session
+
 from app.models.match import Match
 from app.models.odds import Odds
-from sqlalchemy.orm import Session
 
 
 def load_csv(file_path: str, db: Session):

@@ -1,5 +1,6 @@
-from app.models.match import Match
 from sqlalchemy.orm import joinedload
+
+from app.models.match import Match
 
 
 class MatchRepository:
