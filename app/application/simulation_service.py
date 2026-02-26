@@ -4,33 +4,30 @@ from app.domain.simulation.strategy import AlwaysHomeStrategy, EdgeStrategy
 from app.infrastructure.repositories.match_repository import MatchRepository
 
 
-def build_strategy_from_request(request: SimulationRequest):
-    if request.strategy_type == "home":
-        return AlwaysHomeStrategy()
+class SimulationService:
+    def __init__(self, db):
+        self.repo = MatchRepository(db)
 
-    if request.strategy_type == "edge":
-        return EdgeStrategy(
-            selection=request.selection,
-            min_edge=request.min_edge,
+    def _build_strategy(self, request: SimulationRequest):
+        if request.strategy_type == "home":
+            return AlwaysHomeStrategy()
+
+        if request.strategy_type == "edge":
+            return EdgeStrategy(
+                selection=request.selection,
+                min_edge=request.min_edge,
+            )
+
+        raise ValueError("Unsupported strategy")
+
+    def run(self, request: SimulationRequest):
+        strategy = self._build_strategy(request)
+
+        matches = self.repo.get_matches(
+            league=request.league,
+            season=request.season,
         )
 
-    raise ValueError("Unsupported strategy")
+        engine = SimulationEngine(request, strategy)
 
-
-def simulate_strategy(db, request):
-    strategy = build_strategy_from_request(request)
-
-    repo = MatchRepository(db)
-
-    matches = repo.get_matches(
-        league=request.league,
-        season=request.season,
-    )
-
-    engine = SimulationEngine(
-        matches=matches,
-        request=request,
-        strategy=strategy,
-    )
-
-    return engine.run()
+        return engine.run(matches)

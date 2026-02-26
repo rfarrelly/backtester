@@ -5,15 +5,12 @@ class StrategyDecision:
 
 
 class BaseStrategy:
-    def evaluate(self, match, context):
-        """
-        Must return StrategyDecision.
-        """
+    def evaluate(self, match, context=None):
         raise NotImplementedError
 
 
-class AlwaysHomeStrategy:
-    def evaluate(self, match, context):
+class AlwaysHomeStrategy(BaseStrategy):
+    def evaluate(self, match, context=None):
         return StrategyDecision(place_bet=True, selection="H")
 
 
@@ -22,23 +19,26 @@ class EdgeStrategy(BaseStrategy):
         self.selection = selection
         self.min_edge = min_edge
 
-    def evaluate(self, match, context):
+    def evaluate(self, match, context=None):
+        if self.selection not in ("H", "D", "A"):
+            return StrategyDecision(False)
+
         odds_map = {
-            "H": match.odds.home_win,
-            "D": match.odds.draw,
-            "A": match.odds.away_win,
+            "H": match.home_win_odds,
+            "D": match.draw_odds,
+            "A": match.away_win_odds,
         }
 
         prob_map = {
-            "H": match.odds.model_home_prob,
-            "D": match.odds.model_draw_prob,
-            "A": match.odds.model_away_prob,
+            "H": match.model_home_prob,
+            "D": match.model_draw_prob,
+            "A": match.model_away_prob,
         }
 
         odds = odds_map[self.selection]
         model_prob = prob_map[self.selection]
 
-        if model_prob is None:
+        if model_prob is None or not odds or odds <= 0:
             return StrategyDecision(False)
 
         implied_prob = 1 / odds

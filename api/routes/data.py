@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.db.session import get_db
-from app.services.csv_loader import load_csv
+from app.infrastructure.db.session import get_db
+from app.ingestion.csv_loader import load_csv
 
 router = APIRouter(tags=["data"])
 

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.core.security import (
+from app.auth.security import (
     create_access_token,
     hash_password,
     verify_password,

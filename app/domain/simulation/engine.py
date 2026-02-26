@@ -1,13 +1,8 @@
 from itertools import combinations, groupby
 from operator import attrgetter
 
-from sqlalchemy.orm import Session
-
 from app.domain.simulation.context import RollingContext
-from app.infrastructure.persistence_models.match import Match
-from app.infrastructure.persistence_models.odds import Odds
-
-from .models import SimulationRequest
+from app.domain.simulation.entities import Match
 
 
 class SettledBet:
@@ -92,6 +87,8 @@ def calculate_stake(request, bankroll, combined_odds, combined_prob):
             return None
 
         b = combined_odds - 1
+        if b <= 0:
+            return None
         f = (b * combined_prob - (1 - combined_prob)) / b
 
         if f <= 0:
@@ -102,27 +99,30 @@ def calculate_stake(request, bankroll, combined_odds, combined_prob):
     return None
 
 
-def build_valid_combo(eligible, multiple_legs):
+def build_valid_combo(
+    eligible: list[tuple[Match, str]],
+    multiple_legs: int,
+) -> list[tuple[Match, str]] | None:
     for candidate in combinations(eligible, multiple_legs):
         teams = set()
         valid = True
 
-        for match in candidate:
+        for match, _ in candidate:
             if match.home_team in teams or match.away_team in teams:
                 valid = False
                 break
+
             teams.add(match.home_team)
             teams.add(match.away_team)
 
         if valid:
-            return candidate
+            return list(candidate)
 
     return None
 
 
 class SimulationEngine:
-    def __init__(self, matches, request, strategy):
-        self.matches = matches
+    def __init__(self, request, strategy):
         self.request = request
         self.strategy = strategy
 
@@ -141,9 +141,7 @@ class SimulationEngine:
     # Public API
     # --------------------------------------------------
 
-    def run(self):
-        matches = self.matches
-
+    def run(self, matches: list[Match]):
         for kickoff, group in groupby(matches, key=attrgetter("kickoff")):
             batch = list(group)
 
@@ -169,16 +167,6 @@ class SimulationEngine:
     # Core Steps
     # --------------------------------------------------
 
-    def _load_matches(self):
-        return (
-            self.db.query(Match)
-            .join(Match.odds)
-            .filter(Match.league == self.request.league)
-            .filter(Match.season == self.request.season)
-            .order_by(Match.kickoff.asc())
-            .all()
-        )
-
     def _settle_matured(self, kickoff):
         self.bankroll, newly_settled = settle_matured_bets(
             self.active_bets,
@@ -202,8 +190,7 @@ class SimulationEngine:
             if not decision.place_bet:
                 continue
 
-            match._strategy_selection = decision.selection
-            eligible.append(match)
+            eligible.append((match, decision.selection))
 
         if len(eligible) >= self.request.multiple_legs:
             combo = build_valid_combo(eligible, self.request.multiple_legs)
@@ -215,21 +202,19 @@ class SimulationEngine:
         for match in batch:
             self.context.update(match)
 
-    def _attempt_place_bet(self, combo):
+    def _attempt_place_bet(self, combo: list[tuple[Match, str]]):
         combined_odds = 1
         combined_prob = 1
         selections = {}
 
-        for match in combo:
-            selection = match._strategy_selection
-
+        for match, selection in combo:
             odds = {
-                "H": match.odds.home_win,
-                "D": match.odds.draw,
-                "A": match.odds.away_win,
+                "H": match.home_win_odds,
+                "D": match.draw_odds,
+                "A": match.away_win_odds,
             }[selection]
 
-            if self.request.min_odds and odds < self.request.min_odds:
+            if self.request.min_odds is not None and odds < self.request.min_odds:
                 return
 
             combined_odds *= odds
@@ -237,9 +222,9 @@ class SimulationEngine:
 
             if self.request.staking_method == "kelly":
                 prob = {
-                    "H": match.odds.model_home_prob,
-                    "D": match.odds.model_draw_prob,
-                    "A": match.odds.model_away_prob,
+                    "H": match.model_home_prob,
+                    "D": match.model_draw_prob,
+                    "A": match.model_away_prob,
                 }[selection]
 
                 if prob is None:
@@ -258,17 +243,17 @@ class SimulationEngine:
             return
 
         bet = Bet(
-            matches=combo,
+            matches=[match for match, _ in combo],
             stake=stake,
             combined_odds=combined_odds,
-            settles_at=max(m.kickoff for m in combo),
+            settles_at=max(match.kickoff for match, _ in combo),
             selections=selections,
         )
 
         self.active_bets.append(bet)
         self.bankroll -= stake
 
-        for match in combo:
+        for match, _ in combo:
             self.team_locks[match.home_team] = match.id
             self.team_locks[match.away_team] = match.id
 
@@ -297,6 +282,8 @@ class SimulationEngine:
         if self.bankroll > self.peak_bankroll:
             self.peak_bankroll = self.bankroll
 
+        if self.peak_bankroll == 0:
+            return
         drawdown = (self.peak_bankroll - self.bankroll) / self.peak_bankroll
         self.max_drawdown = max(self.max_drawdown, drawdown)
 

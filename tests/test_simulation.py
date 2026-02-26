@@ -6,20 +6,8 @@ from app.domain.simulation.models import SimulationRequest
 from app.domain.simulation.strategy import AlwaysHomeStrategy, EdgeStrategy
 
 # -------------------------
-# Fake ORM Models
+# Fake Domain Fields
 # -------------------------
-
-
-class FakeOdds:
-    def __init__(self, home, draw, away, model_home=None):
-        self.home_win = home
-        self.draw = draw
-        self.away_win = away
-
-        # Kelly fields (unused here)
-        self.model_home_prob = model_home
-        self.model_draw_prob = None
-        self.model_away_prob = None
 
 
 class FakeMatch:
@@ -33,7 +21,15 @@ class FakeMatch:
         self.home_goals = 2
         self.away_goals = 0
         self.result = result
-        self.odds = FakeOdds(2.0, 3.5, 4.0, model_home=model_home)
+
+        # Direct domain-style fields
+        self.home_win_odds = 2.0
+        self.draw_odds = 3.5
+        self.away_win_odds = 4.0
+
+        self.model_home_prob = model_home
+        self.model_draw_prob = None
+        self.model_away_prob = None
 
 
 # -------------------------
@@ -96,8 +92,8 @@ def test_fixed_singles_all_wins():
         strategy_type="home",
     )
 
-    engine = SimulationEngine(matches, request, strategy)
-    result = engine.run()
+    engine = SimulationEngine(request, strategy)
+    result = engine.run(matches)
 
     assert result["total_bets"] == 4
     assert result["final_bankroll"] == 1400
@@ -133,8 +129,8 @@ def test_edge_strategy_places_bet():
         strategy_type="edge",
     )
 
-    engine = SimulationEngine(matches, request, strategy)
-    result = engine.run()
+    engine = SimulationEngine(request, strategy)
+    result = engine.run(matches)
 
     assert result["total_bets"] == 1
     assert result["final_bankroll"] == 1100
@@ -160,8 +156,8 @@ def test_edge_strategy_blocks_bet_when_edge_too_small():
         strategy_type="edge",
     )
 
-    engine = SimulationEngine(matches, request, strategy)
-    result = engine.run()
+    engine = SimulationEngine(request, strategy)
+    result = engine.run(matches)
 
     assert result["total_bets"] == 0
     assert result["final_bankroll"] == 1000
@@ -187,8 +183,8 @@ def test_kelly_single_win():
         strategy_type="edge",
     )
 
-    engine = SimulationEngine(matches, request, strategy)
-    result = engine.run()
+    engine = SimulationEngine(request, strategy)
+    result = engine.run(matches)
 
     assert result["total_bets"] == 1
     assert result["final_bankroll"] == 1200.0
@@ -219,8 +215,8 @@ def test_two_leg_accumulator_all_wins():
         strategy_type="home",
     )
 
-    engine = SimulationEngine(matches, request, strategy)
-    result = engine.run()
+    engine = SimulationEngine(request, strategy)
+    result = engine.run(matches)
 
     assert result["total_bets"] == 1
     assert result["final_bankroll"] == 1300.0

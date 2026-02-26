@@ -1,10 +1,10 @@
+from app.application.parameter_sweep_service import ParameterSweep
 from app.domain.simulation.models import SimulationRequest
 from app.domain.simulation.strategy import EdgeStrategy
 from app.infrastructure.db.session import SessionLocal
 from app.infrastructure.repositories.match_repository import (
     MatchRepository,
 )
-from app.services.parameter_sweep import ParameterSweep
 
 
 def edge_strategy_factory(min_edge):
