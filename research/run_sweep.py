@@ -1,53 +1,42 @@
-from app.application.parameter_sweep_service import ParameterSweep
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parents[1] / ".env.local")
+
+from sqlalchemy.orm import Session
+
+from app.application.simulation_service import SimulationService
 from app.domain.simulation.models import SimulationRequest
-from app.domain.simulation.strategy import EdgeStrategy
 from app.infrastructure.db.session import SessionLocal
-from app.infrastructure.repositories.match_repository import (
-    MatchRepository,
-)
-
-
-def edge_strategy_factory(min_edge):
-    return EdgeStrategy(
-        selection="H",
-        min_edge=min_edge,
-    )
 
 
 def main():
-    db = SessionLocal()
+    db: Session = SessionLocal()
+    service = SimulationService(db)
 
-    repo = MatchRepository(db)
-
-    request = SimulationRequest(
-        league="EPL",
-        season=2023,
+    base = SimulationRequest(
+        league="Premier-League",
+        season="2526",
+        strategy_type="home",
+        selection="H",
+        staking_method="fixed",
+        fixed_stake=100,
         starting_bankroll=1000,
-        staking_method="flat",
-        flat_stake=10,
         multiple_legs=1,
+        min_odds=None,
+        min_edge=0.0,  # overridden in sweep
+        percent_stake=None,
+        kelly_fraction=None,
     )
 
-    matches = repo.get_matches(
-        league=request.league,
-        season=request.season,
-    )
-
-    param_grid = {
-        "min_edge": [0.01, 0.03, 0.05, 0.07, 0.1],
-    }
-
-    sweep = ParameterSweep(
-        matches=matches,
-        base_request=request,
-        strategy_factory=edge_strategy_factory,
-        param_grid=param_grid,
-    )
-
-    results = sweep.rank_by_roi()
-
-    for r in results:
-        print(r)
+    for min_edge in [0.00, 0.02, 0.05, 0.08, 0.10]:
+        req = base.model_copy(update={"min_edge": min_edge})
+        result = service.run(req)
+        print(
+            f"min_edge={min_edge:.2f}  ROI={result['roi_percent']:.2f}%  "
+            f"bets={result['total_bets']}  final={result['final_bankroll']}"
+        )
 
 
 if __name__ == "__main__":

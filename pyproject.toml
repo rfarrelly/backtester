@@ -13,6 +13,7 @@ dependencies = [
     "psycopg2-binary>=2.9.11",
     "pydantic[email]>=2.12.5",
     "pytest>=9.0.2",
+    "python-dotenv>=1.2.1",
     "python-jose>=3.5.0",
     "redis>=7.2.0",
     "sqlalchemy>=2.0.46",

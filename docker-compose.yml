@@ -6,7 +6,7 @@ services:
     container_name: backtester_postgres
     restart: always
     env_file:
-      - .env
+      - .env.docker
     ports:
       - "5432:5432"
     volumes:
@@ -26,7 +26,7 @@ services:
     container_name: backtester_api
     restart: always
     env_file:
-      - .env
+      - .env.docker
     ports:
       - "8000:8000"
     depends_on:
@@ -42,7 +42,7 @@ services:
     container_name: backtester_worker
     restart: always
     env_file:
-      - .env
+      - .env.docker
     depends_on:
       - redis
       - postgres
