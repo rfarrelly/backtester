@@ -5,10 +5,6 @@ from app.domain.simulation.engine import SimulationEngine
 from app.domain.simulation.models import SimulationRequest
 from app.domain.simulation.strategy import AlwaysHomeStrategy, EdgeStrategy
 
-# -------------------------
-# Fake Domain Fields
-# -------------------------
-
 
 class FakeMatch:
     def __init__(self, home, away, kickoff, result, model_home=None):
@@ -22,66 +18,41 @@ class FakeMatch:
         self.away_goals = 0
         self.result = result
 
-        # Direct domain-style fields
+        # flat odds fields (domain-style)
         self.home_win_odds = 2.0
         self.draw_odds = 3.5
         self.away_win_odds = 4.0
 
+        # flat model prob fields (domain-style)
         self.model_home_prob = model_home
         self.model_draw_prob = None
         self.model_away_prob = None
 
 
-# -------------------------
-# Fake DB Layer
-# -------------------------
-
-
-class FakeQuery:
-    def __init__(self, matches):
-        self.matches = matches
-
-    def join(self, *_):
-        return self
-
-    def filter(self, *_):
-        return self
-
-    def order_by(self, *_):
-        return self
-
-    def all(self):
-        return self.matches
-
-
-class FakeDB:
-    def __init__(self, matches):
-        self.matches = matches
-
-    def query(self, *_):
-        return FakeQuery(self.matches)
-
-
-# -------------------------
-# Deterministic Test
-# -------------------------
+def _is_win(bet):
+    """Support both object and dict bet outputs."""
+    return bet["is_win"] if isinstance(bet, dict) else bet.is_win
 
 
 def test_fixed_singles_all_wins():
     strategy = AlwaysHomeStrategy()
 
-    matches = [
-        FakeMatch("A", "B", datetime(2025, 1, 1, 15, 0), "H"),
-        FakeMatch("C", "D", datetime(2025, 1, 2, 15, 0), "H"),
-        FakeMatch("E", "F", datetime(2025, 1, 3, 15, 0), "H"),
-        FakeMatch("G", "H", datetime(2025, 1, 4, 15, 0), "H"),
-    ]
-
-    db = FakeDB(matches)
+    matches = sorted(
+        [
+            FakeMatch("A", "B", datetime(2025, 1, 1, 15, 0), "H"),
+            FakeMatch("C", "D", datetime(2025, 1, 2, 15, 0), "H"),
+            FakeMatch("E", "F", datetime(2025, 1, 3, 15, 0), "H"),
+            FakeMatch("G", "H", datetime(2025, 1, 4, 15, 0), "H"),
+        ],
+        key=lambda m: m.kickoff,
+    )
 
     request = SimulationRequest(
         league="TestLeague",
         season="2025",
+        strategy_type="home",
+        selection=None,
+        min_edge=None,
         starting_bankroll=1000,
         staking_method="fixed",
         fixed_stake=100,
@@ -89,7 +60,6 @@ def test_fixed_singles_all_wins():
         kelly_fraction=None,
         multiple_legs=1,
         min_odds=None,
-        strategy_type="home",
     )
 
     engine = SimulationEngine(request, strategy)
@@ -100,7 +70,7 @@ def test_fixed_singles_all_wins():
     assert result["roi_percent"] == 40.0
     assert result["max_drawdown_percent"] == 0.0
     assert len(result["bets"]) == 4
-    assert all(b.is_win for b in result["bets"])
+    assert all(_is_win(b) for b in result["bets"])
     assert result["total_wins"] == 4
     assert result["total_losses"] == 0
     assert result["strike_rate_percent"] == 100.0
@@ -112,13 +82,14 @@ def test_fixed_singles_all_wins():
 def test_edge_strategy_places_bet():
     matches = [FakeMatch("A", "B", datetime(2025, 1, 1, 15, 0), "H", model_home=0.6)]
 
-    db = FakeDB(matches)
-
     strategy = EdgeStrategy(selection="H", min_edge=0.05)
 
     request = SimulationRequest(
         league="TestLeague",
         season="2025",
+        strategy_type="edge",
+        selection="H",
+        min_edge=0.05,
         starting_bankroll=1000,
         staking_method="fixed",
         fixed_stake=100,
@@ -126,7 +97,6 @@ def test_edge_strategy_places_bet():
         kelly_fraction=None,
         multiple_legs=1,
         min_odds=None,
-        strategy_type="edge",
     )
 
     engine = SimulationEngine(request, strategy)
@@ -139,13 +109,14 @@ def test_edge_strategy_places_bet():
 def test_edge_strategy_blocks_bet_when_edge_too_small():
     matches = [FakeMatch("A", "B", datetime(2025, 1, 1, 15, 0), "H", model_home=0.6)]
 
-    db = FakeDB(matches)
-
     strategy = EdgeStrategy(selection="H", min_edge=0.2)
 
     request = SimulationRequest(
         league="TestLeague",
         season="2025",
+        strategy_type="edge",
+        selection="H",
+        min_edge=0.2,
         starting_bankroll=1000,
         staking_method="fixed",
         fixed_stake=100,
@@ -153,7 +124,6 @@ def test_edge_strategy_blocks_bet_when_edge_too_small():
         kelly_fraction=None,
         multiple_legs=1,
         min_odds=None,
-        strategy_type="edge",
     )
 
     engine = SimulationEngine(request, strategy)
@@ -166,13 +136,14 @@ def test_edge_strategy_blocks_bet_when_edge_too_small():
 def test_kelly_single_win():
     matches = [FakeMatch("A", "B", datetime(2025, 1, 1, 15, 0), "H", model_home=0.6)]
 
-    db = FakeDB(matches)
-
     strategy = EdgeStrategy(selection="H", min_edge=0.0)
 
     request = SimulationRequest(
         league="TestLeague",
         season="2025",
+        strategy_type="edge",
+        selection="H",
+        min_edge=0.0,
         starting_bankroll=1000,
         staking_method="kelly",
         fixed_stake=None,
@@ -180,7 +151,6 @@ def test_kelly_single_win():
         kelly_fraction=1.0,  # full Kelly
         multiple_legs=1,
         min_odds=None,
-        strategy_type="edge",
     )
 
     engine = SimulationEngine(request, strategy)
@@ -193,18 +163,22 @@ def test_kelly_single_win():
 
 
 def test_two_leg_accumulator_all_wins():
-    matches = [
-        FakeMatch("A", "B", datetime(2025, 1, 1, 15, 0), "H"),
-        FakeMatch("C", "D", datetime(2025, 1, 1, 15, 0), "H"),
-    ]
-
-    db = FakeDB(matches)
+    matches = sorted(
+        [
+            FakeMatch("A", "B", datetime(2025, 1, 1, 15, 0), "H"),
+            FakeMatch("C", "D", datetime(2025, 1, 1, 15, 0), "H"),
+        ],
+        key=lambda m: m.kickoff,
+    )
 
     strategy = AlwaysHomeStrategy()
 
     request = SimulationRequest(
         league="TestLeague",
         season="2025",
+        strategy_type="home",
+        selection=None,
+        min_edge=None,
         starting_bankroll=1000,
         staking_method="fixed",
         fixed_stake=100,
@@ -212,7 +186,6 @@ def test_two_leg_accumulator_all_wins():
         kelly_fraction=None,
         multiple_legs=2,
         min_odds=None,
-        strategy_type="home",
     )
 
     engine = SimulationEngine(request, strategy)

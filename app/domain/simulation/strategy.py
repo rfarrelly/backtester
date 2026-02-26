@@ -44,7 +44,7 @@ class EdgeStrategy(BaseStrategy):
         implied_prob = 1 / odds
         edge = model_prob - implied_prob
 
-        if edge > self.min_edge:
+        if edge >= self.min_edge:
             return StrategyDecision(True, self.selection)
 
         return StrategyDecision(False)

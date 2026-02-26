@@ -157,7 +157,7 @@ class SimulationEngine:
         )
 
         return {
-            "bets": self.settled_bets,
+            "bets": [self._serialize_bet(b) for b in self.settled_bets],
             "final_bankroll": round(self.bankroll, 2),
             "max_drawdown_percent": round(self.max_drawdown * 100, 2),
             **metrics,
@@ -286,6 +286,27 @@ class SimulationEngine:
             return
         drawdown = (self.peak_bankroll - self.bankroll) / self.peak_bankroll
         self.max_drawdown = max(self.max_drawdown, drawdown)
+
+    def _serialize_bet(self, b):
+        return {
+            "stake": b.stake,
+            "combined_odds": b.combined_odds,
+            "is_win": b.is_win,
+            "profit": b.profit,
+            "return_amount": b.return_amount,
+            "settled_at": b.settled_at.isoformat() if b.settled_at else None,
+            "selections": {str(k): v for k, v in b.selections.items()},
+            "matches": [
+                {
+                    "id": str(m.id),
+                    "kickoff": m.kickoff.isoformat(),
+                    "home_team": m.home_team,
+                    "away_team": m.away_team,
+                    "result": m.result,
+                }
+                for m in b.matches
+            ],
+        }
 
 
 def calculate_metrics(settled_bets, starting_bankroll, final_bankroll):
