@@ -136,6 +136,7 @@ class SimulationEngine:
         # Metrics tracking
         self.max_drawdown = 0
         self.peak_bankroll = self.bankroll
+        self.equity_curve = [{"t": None, "bankroll": round(self.bankroll, 2)}]
 
     # --------------------------------------------------
     # Public API
@@ -160,6 +161,7 @@ class SimulationEngine:
             "bets": [self._serialize_bet(b) for b in self.settled_bets],
             "final_bankroll": round(self.bankroll, 2),
             "max_drawdown_percent": round(self.max_drawdown * 100, 2),
+            "equity_curve": self.equity_curve,
             **metrics,
         }
 
@@ -176,6 +178,10 @@ class SimulationEngine:
         )
 
         self.settled_bets.extend(newly_settled)
+        for b in newly_settled:
+            self.equity_curve.append(
+                {"t": b.settled_at.isoformat(), "bankroll": round(self.bankroll, 2)}
+            )
         self._update_drawdown()
 
     def _process_kickoff_batch(self, batch):
@@ -272,6 +278,10 @@ class SimulationEngine:
         )
 
         self.settled_bets.extend(newly_settled)
+        for b in newly_settled:
+            self.equity_curve.append(
+                {"t": b.settled_at.isoformat(), "bankroll": round(self.bankroll, 2)}
+            )
         self._update_drawdown()
 
     # --------------------------------------------------
