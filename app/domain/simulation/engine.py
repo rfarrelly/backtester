@@ -373,6 +373,13 @@ def calculate_metrics(settled_bets, starting_bankroll, final_bankroll):
     total_bets = len(settled_bets)
     total_staked = sum(b.stake for b in settled_bets)
     total_profit = sum(b.profit for b in settled_bets)
+    gross_profit = sum(b.profit for b in settled_bets if b.profit > 0)
+    gross_loss = -sum(b.profit for b in settled_bets if b.profit < 0)
+    profit_factor = (
+        (gross_profit / gross_loss)
+        if gross_loss > 0
+        else (float("inf") if gross_profit > 0 else 0.0)
+    )
 
     total_wins = sum(1 for b in settled_bets if b.is_win)
     total_losses = total_bets - total_wins
@@ -417,4 +424,5 @@ def calculate_metrics(settled_bets, starting_bankroll, final_bankroll):
         "longest_win_streak": longest_win_streak,
         "longest_loss_streak": longest_loss_streak,
         "roi_percent": round(roi, 2),
+        "profit_factor": profit_factor,
     }

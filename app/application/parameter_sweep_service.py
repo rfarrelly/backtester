@@ -1,4 +1,3 @@
-import copy
 import itertools
 
 from app.domain.simulation.engine import SimulationEngine
@@ -32,17 +31,11 @@ class ParameterSweep:
         results = []
 
         for params in self._generate_param_combinations():
-            request_copy = copy.deepcopy(self.base_request)
-
+            request_copy = self.base_request.model_copy(update=params)
             strategy = self.strategy_factory(**params)
 
-            engine = SimulationEngine(
-                matches=self.matches,
-                request=request_copy,
-                strategy=strategy,
-            )
-
-            simulation_result = engine.run()
+            engine = SimulationEngine(request_copy, strategy)
+            simulation_result = engine.run(self.matches)
 
             results.append(
                 {
@@ -50,6 +43,10 @@ class ParameterSweep:
                     "final_bankroll": simulation_result["final_bankroll"],
                     "roi_percent": simulation_result["roi_percent"],
                     "total_bets": simulation_result["total_bets"],
+                    "max_drawdown_percent": simulation_result["max_drawdown_percent"],
+                    "strike_rate_percent": simulation_result["strike_rate_percent"],
+                    "average_odds": simulation_result["average_odds"],
+                    "profit_factor": simulation_result.get("profit_factor"),
                 }
             )
 
