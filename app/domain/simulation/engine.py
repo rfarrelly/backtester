@@ -162,6 +162,19 @@ class SimulationEngine:
             "final_bankroll": round(self.bankroll, 2),
             "max_drawdown_percent": round(self.max_drawdown * 100, 2),
             "equity_curve": self.equity_curve,
+            "run_config": {
+                "league": self.request.league,
+                "season": self.request.season,
+                "strategy_type": self.request.strategy_type,
+                "selection": self.request.selection,
+                "min_edge": self.request.min_edge,
+                "staking_method": self.request.staking_method,
+                "fixed_stake": self.request.fixed_stake,
+                "percent_stake": self.request.percent_stake,
+                "kelly_fraction": self.request.kelly_fraction,
+                "multiple_legs": self.request.multiple_legs,
+                "min_odds": self.request.min_odds,
+            },
             **metrics,
         }
 
@@ -298,24 +311,61 @@ class SimulationEngine:
         self.max_drawdown = max(self.max_drawdown, drawdown)
 
     def _serialize_bet(self, b):
-        return {
-            "stake": b.stake,
-            "combined_odds": b.combined_odds,
-            "is_win": b.is_win,
-            "profit": b.profit,
-            "return_amount": b.return_amount,
-            "settled_at": b.settled_at.isoformat() if b.settled_at else None,
-            "selections": {str(k): v for k, v in b.selections.items()},
-            "matches": [
+        legs = []
+
+        for m in b.matches:
+            selection = b.selections.get(m.id)
+
+            odds = None
+            model_prob = None
+
+            if selection == "H":
+                odds = m.home_win_odds
+                model_prob = m.model_home_prob
+            elif selection == "D":
+                odds = m.draw_odds
+                model_prob = m.model_draw_prob
+            elif selection == "A":
+                odds = m.away_win_odds
+                model_prob = m.model_away_prob
+
+            implied_prob = (1 / odds) if odds else None
+            edge = (
+                (model_prob - implied_prob)
+                if (model_prob is not None and implied_prob is not None)
+                else None
+            )
+
+            legs.append(
                 {
-                    "id": str(m.id),
+                    "match_id": str(m.id),
                     "kickoff": m.kickoff.isoformat(),
                     "home_team": m.home_team,
                     "away_team": m.away_team,
                     "result": m.result,
+                    "selection": selection,
+                    "odds": odds,
+                    "implied_prob": implied_prob,
+                    "model_prob": model_prob,
+                    "edge": edge,
                 }
-                for m in b.matches
-            ],
+            )
+
+        return {
+            "stake": round(b.stake, 2),
+            "combined_odds": round(b.combined_odds, 4),
+            "is_win": b.is_win,
+            "profit": round(b.profit, 2),
+            "return_amount": round(b.return_amount, 2),
+            "settled_at": b.settled_at.isoformat() if b.settled_at else None,
+            "legs": legs,
+            "meta": {
+                "strategy_type": self.request.strategy_type,
+                "staking_method": self.request.staking_method,
+                "multiple_legs": self.request.multiple_legs,
+                "min_odds": self.request.min_odds,
+                "min_edge": self.request.min_edge,
+            },
         }
 
 
