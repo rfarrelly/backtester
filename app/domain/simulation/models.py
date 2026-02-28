@@ -6,9 +6,10 @@ from pydantic import BaseModel, model_validator
 class SimulationRequest(BaseModel):
     league: str
     season: str
-    strategy_type: Literal["home", "edge"]
+    strategy_type: Literal["home", "edge", "rules"]
 
     selection: Literal["H", "D", "A"] | None = None
+    rule_expression: str | None = None
 
     staking_method: Literal["fixed", "percent", "kelly"]
 

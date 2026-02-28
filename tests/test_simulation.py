@@ -3,7 +3,11 @@ from datetime import datetime
 
 from app.domain.simulation.engine import SimulationEngine
 from app.domain.simulation.models import SimulationRequest
-from app.domain.simulation.strategy import AlwaysHomeStrategy, EdgeStrategy
+from app.domain.simulation.strategy import (
+    AlwaysHomeStrategy,
+    EdgeStrategy,
+    RuleStrategy,
+)
 
 
 class FakeMatch:
@@ -195,3 +199,127 @@ def test_two_leg_accumulator_all_wins():
     assert result["final_bankroll"] == 1300.0
     assert result["total_profit"] == 300.0
     assert result["roi_percent"] == 30.0
+
+
+def test_rule_strategy_places_bet_when_true():
+    """
+    Rule: home_points > away_points
+    Build history where Team A has points, Team B has none.
+    Then target match A vs B should trigger a bet.
+    """
+    # History kickoffs (strictly before target)
+    h1 = datetime(2025, 1, 1, 12, 0)
+    h2 = datetime(2025, 1, 2, 12, 0)
+
+    # Team A gets points (win as home)
+    # Team B gets no points (loss as home)
+    history = [
+        FakeMatch("A", "X", h1, "H"),  # A win -> +3
+        FakeMatch("B", "Y", h2, "A"),  # B loss -> +0
+    ]
+
+    target = FakeMatch("A", "B", datetime(2025, 1, 3, 15, 0), "H")
+
+    matches = sorted(history + [target], key=lambda m: m.kickoff)
+
+    strategy = RuleStrategy(rule_expression="home_points > away_points", selection="H")
+
+    request = SimulationRequest(
+        league="TestLeague",
+        season="2025",
+        strategy_type="rules",
+        selection="H",
+        rule_expression="home_points > away_points",
+        min_edge=None,
+        starting_bankroll=1000,
+        staking_method="fixed",
+        fixed_stake=100,
+        percent_stake=None,
+        kelly_fraction=None,
+        multiple_legs=1,
+        min_odds=None,
+    )
+
+    engine = SimulationEngine(request, strategy)
+    result = engine.run(matches)
+
+    assert result["total_bets"] == 1
+    assert result["final_bankroll"] == 1100.0
+    assert result["total_wins"] == 1
+
+
+def test_rule_strategy_blocks_bet_when_false():
+    """
+    Rule: home_points > away_points
+    Build history where Team A has no points, Team B has points.
+    Target match A vs B should NOT trigger a bet.
+    """
+    h1 = datetime(2025, 1, 1, 12, 0)
+    h2 = datetime(2025, 1, 2, 12, 0)
+
+    # Team A gets no points (loss as home)
+    # Team B gets points (win as home)
+    history = [
+        FakeMatch("A", "X", h1, "A"),  # A loss -> +0
+        FakeMatch("B", "Y", h2, "H"),  # B win -> +3
+    ]
+
+    target = FakeMatch("A", "B", datetime(2025, 1, 3, 15, 0), "H")
+
+    matches = sorted(history + [target], key=lambda m: m.kickoff)
+
+    strategy = RuleStrategy(rule_expression="home_points > away_points", selection="H")
+
+    request = SimulationRequest(
+        league="TestLeague",
+        season="2025",
+        strategy_type="rules",
+        selection="H",
+        rule_expression="home_points > away_points",
+        min_edge=None,
+        starting_bankroll=1000,
+        staking_method="fixed",
+        fixed_stake=100,
+        percent_stake=None,
+        kelly_fraction=None,
+        multiple_legs=1,
+        min_odds=None,
+    )
+
+    engine = SimulationEngine(request, strategy)
+    result = engine.run(matches)
+
+    assert result["total_bets"] == 0
+    assert result["final_bankroll"] == 1000.0
+
+
+def test_rule_strategy_supports_abs():
+    history = [
+        FakeMatch("A", "X", datetime(2025, 1, 1, 12, 0), "H"),  # A +3
+        FakeMatch("B", "Y", datetime(2025, 1, 2, 12, 0), "D"),  # B +1
+    ]
+    target = FakeMatch("A", "B", datetime(2025, 1, 3, 15, 0), "H")
+    matches = sorted(history + [target], key=lambda m: m.kickoff)
+
+    strategy = RuleStrategy(rule_expression="abs(points_diff) >= 2", selection="H")
+
+    request = SimulationRequest(
+        league="TestLeague",
+        season="2025",
+        strategy_type="rules",
+        selection="H",
+        rule_expression="abs(points_diff) >= 2",
+        min_edge=None,
+        starting_bankroll=1000,
+        staking_method="fixed",
+        fixed_stake=100,
+        percent_stake=None,
+        kelly_fraction=None,
+        multiple_legs=1,
+        min_odds=None,
+    )
+
+    engine = SimulationEngine(request, strategy)
+    result = engine.run(matches)
+
+    assert result["total_bets"] == 1
