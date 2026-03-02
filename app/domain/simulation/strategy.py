@@ -80,6 +80,10 @@ class RuleStrategy(BaseStrategy):
             "away_win_odds": match.away_win_odds,
         }
 
+        # user-uploaded features become first-class variables in expressions
+        if getattr(match, "features", None):
+            vars_dict.update(match.features)
+
         # If any variables are None, eval may fail; treat as "no bet"
         try:
             ok = self._fn(vars_dict)

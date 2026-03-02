@@ -38,4 +38,5 @@ class MatchRepository:
             model_home_prob=odds.model_home_prob,
             model_draw_prob=odds.model_draw_prob,
             model_away_prob=odds.model_away_prob,
+            features={},
         )

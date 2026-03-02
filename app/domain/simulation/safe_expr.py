@@ -43,6 +43,7 @@ _ALLOWED_NODES = (
     ast.LtE,
     ast.Gt,
     ast.GtE,
+    ast.IsNot,
 )
 
 

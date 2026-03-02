@@ -323,3 +323,35 @@ def test_rule_strategy_supports_abs():
     result = engine.run(matches)
 
     assert result["total_bets"] == 1
+
+
+from app.domain.simulation.strategy import RuleStrategy
+
+
+def test_rule_strategy_can_use_uploaded_features():
+    m1 = FakeMatch("A", "B", datetime(2025, 1, 1, 15, 0), "H")
+    # attach “uploaded” features
+    m1.features = {"PPI_DIFF_NORM": 0.05}
+
+    strategy = RuleStrategy("PPI_DIFF_NORM < 0.1", selection="H")
+
+    request = SimulationRequest(
+        league="TestLeague",
+        season="2025",
+        strategy_type="rules",
+        selection="H",
+        rule_expression="PPI_DIFF_NORM < 0.1",
+        min_edge=None,
+        starting_bankroll=1000,
+        staking_method="fixed",
+        fixed_stake=100,
+        percent_stake=None,
+        kelly_fraction=None,
+        multiple_legs=1,
+        min_odds=None,
+    )
+
+    engine = SimulationEngine(request, strategy)
+    result = engine.run([m1])
+
+    assert result["total_bets"] == 1

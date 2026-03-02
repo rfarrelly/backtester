@@ -314,7 +314,7 @@ class SimulationEngine:
         legs = []
 
         for m in b.matches:
-            selection = b.selections.get(m.id)
+            selection = b.selections.get(m.id) or b.selections.get(str(m.id))
 
             odds = None
             model_prob = None
@@ -329,9 +329,9 @@ class SimulationEngine:
                 odds = m.away_win_odds
                 model_prob = m.model_away_prob
 
-            implied_prob = (1 / odds) if odds else None
+            implied_prob = round(1 / odds, 6) if odds else None
             edge = (
-                (model_prob - implied_prob)
+                round(model_prob - implied_prob, 6)
                 if (model_prob is not None and implied_prob is not None)
                 else None
             )
@@ -348,6 +348,7 @@ class SimulationEngine:
                     "implied_prob": implied_prob,
                     "model_prob": model_prob,
                     "edge": edge,
+                    "features": getattr(m, "features", {}) or {},
                 }
             )
 
@@ -361,6 +362,8 @@ class SimulationEngine:
             "legs": legs,
             "meta": {
                 "strategy_type": self.request.strategy_type,
+                "rule_expression": getattr(self.request, "rule_expression", None),
+                "selection": getattr(self.request, "selection", None),
                 "staking_method": self.request.staking_method,
                 "multiple_legs": self.request.multiple_legs,
                 "min_odds": self.request.min_odds,

@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID
 
@@ -24,3 +24,5 @@ class Match:
     model_home_prob: float | None
     model_draw_prob: float | None
     model_away_prob: float | None
+
+    features: dict = field(default_factory=dict)
