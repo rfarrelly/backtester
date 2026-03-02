@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routes import auth, data, simulation, users
+from api.routes import auth, data, rules, simulation, users
 from app.infrastructure.db.base import Base
 from app.infrastructure.db.session import engine
 
@@ -26,6 +26,7 @@ def health_check():
     return {"status": "ok"}
 
 
+app.include_router(rules.router)
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(simulation.router)
