@@ -1,5 +1,6 @@
 from app.domain.simulation.engine import SimulationEngine
 from app.domain.simulation.models import SimulationRequest
+from app.domain.simulation.rules import RuleCompileError
 from app.domain.simulation.strategy import (
     AlwaysHomeStrategy,
     EdgeStrategy,
@@ -17,18 +18,16 @@ class SimulationService:
             return AlwaysHomeStrategy()
 
         if request.strategy_type == "edge":
-            return EdgeStrategy(
-                selection=request.selection,
-                min_edge=request.min_edge,
-            )
+            return EdgeStrategy(selection=request.selection, min_edge=request.min_edge)
 
         if request.strategy_type == "rules":
+            if not request.rule_expression:
+                raise ValueError("rule_expression is required for rules strategy")
+            if not request.selection:
+                raise ValueError("selection is required for rules strategy")
             return RuleStrategy(
-                rule_expression=request.rule_expression,
-                selection=request.selection or "H",
+                rule_expression=request.rule_expression, selection=request.selection
             )
-        if request.strategy_type == "rules" and not request.rule_expression:
-            raise ValueError("rule_expression is required for rules strategy")
 
         raise ValueError("Unsupported strategy")
 

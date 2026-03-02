@@ -1,4 +1,4 @@
-from app.domain.simulation.safe_expr import UnsafeExpressionError, compile_expr
+from app.domain.simulation.rules import RuleCompileError, compile_rule
 
 
 class StrategyDecision:
@@ -54,23 +54,18 @@ class EdgeStrategy(BaseStrategy):
 
 
 class RuleStrategy(BaseStrategy):
-    """
-    Places a bet when rule_expression evaluates to True.
-    Selection is fixed (H/D/A) for MVP.
-    """
-
-    def __init__(self, rule_expression: str, selection: str = "H"):
+    def __init__(self, rule_expression: str, selection: str):
         self.rule_expression = rule_expression
         self.selection = selection
+        self._compiled = compile_rule(rule_expression)  # may raise RuleCompileError
 
-        self._fn = compile_expr(rule_expression)
+    @property
+    def used_names(self) -> set[str]:
+        return self._compiled.used_names
 
     def evaluate(self, match, context):
-        features = context.features_for_match(match)
-
-        # Add some common aliases
+        # Base variables (always available)
         vars_dict = {
-            **features,
             "home_team": match.home_team,
             "away_team": match.away_team,
             "home_goals": match.home_goals,
@@ -78,15 +73,26 @@ class RuleStrategy(BaseStrategy):
             "home_win_odds": match.home_win_odds,
             "draw_odds": match.draw_odds,
             "away_win_odds": match.away_win_odds,
+            "model_home_prob": match.model_home_prob,
+            "model_draw_prob": match.model_draw_prob,
+            "model_away_prob": match.model_away_prob,
         }
 
-        # user-uploaded features become first-class variables in expressions
-        if getattr(match, "features", None):
-            vars_dict.update(match.features)
+        # Optional rolling context features (fine to keep, but they’ll often be None)
+        if context is not None and hasattr(context, "features_for_match"):
+            vars_dict.update(context.features_for_match(match))
 
-        # If any variables are None, eval may fail; treat as "no bet"
+        # Uploaded features
+        vars_dict.update(getattr(match, "features", {}) or {})
+
         try:
-            ok = self._fn(vars_dict)
+            ok = self._compiled.func(vars_dict)
+        except NameError as e:
+            # references a variable not present in vars_dict
+            return StrategyDecision(False)
+        except TypeError:
+            # e.g. None > 0 etc.
+            return StrategyDecision(False)
         except Exception:
             return StrategyDecision(False)
 

@@ -6,9 +6,10 @@ load_dotenv(Path(__file__).resolve().parents[1] / ".env.local")
 
 from app.application.dataset_mapping import DatasetMapping
 from app.application.in_memory_dataset_loader import load_matches_from_csv
-from app.application.simulation_service import build_strategy
 from app.domain.simulation.engine import SimulationEngine
 from app.domain.simulation.models import SimulationRequest
+from app.domain.simulation.rules import RuleCompileError
+from app.domain.simulation.strategy import RuleStrategy
 
 
 def main():
@@ -74,7 +75,11 @@ def main():
         "Seasons in file (sample):", seasons[:10], ("..." if len(seasons) > 10 else "")
     )
 
-    strategy = build_strategy(request)
+    try:
+        strategy = RuleStrategy(request.rule_expression, selection=request.selection)
+    except RuleCompileError as e:
+        print("RULE ERROR:", e)
+        return
     engine = SimulationEngine(request, strategy)
     result = engine.run(matches)
 

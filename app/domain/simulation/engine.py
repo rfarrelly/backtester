@@ -143,6 +143,9 @@ class SimulationEngine:
     # --------------------------------------------------
 
     def run(self, matches: list[Match]):
+        available_features = sorted(
+            {k for m in matches for k in (getattr(m, "features", {}) or {}).keys()}
+        )
         for kickoff, group in groupby(matches, key=attrgetter("kickoff")):
             batch = list(group)
 
@@ -160,6 +163,7 @@ class SimulationEngine:
         return {
             "bets": [self._serialize_bet(b) for b in self.settled_bets],
             "final_bankroll": round(self.bankroll, 2),
+            "available_features": available_features,
             "max_drawdown_percent": round(self.max_drawdown * 100, 2),
             "equity_curve": self.equity_curve,
             "run_config": {
