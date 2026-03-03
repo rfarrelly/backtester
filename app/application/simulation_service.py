@@ -1,3 +1,5 @@
+from strategy_factory import build_strategy
+
 from app.domain.simulation.engine import SimulationEngine
 from app.domain.simulation.models import SimulationRequest
 from app.domain.simulation.rules import RuleCompileError
@@ -13,26 +15,8 @@ class SimulationService:
     def __init__(self, db):
         self.repo = MatchRepository(db)
 
-    def _build_strategy(self, request: SimulationRequest):
-        if request.strategy_type == "home":
-            return AlwaysHomeStrategy()
-
-        if request.strategy_type == "edge":
-            return EdgeStrategy(selection=request.selection, min_edge=request.min_edge)
-
-        if request.strategy_type == "rules":
-            if not request.rule_expression:
-                raise ValueError("rule_expression is required for rules strategy")
-            if not request.selection:
-                raise ValueError("selection is required for rules strategy")
-            return RuleStrategy(
-                rule_expression=request.rule_expression, selection=request.selection
-            )
-
-        raise ValueError("Unsupported strategy")
-
     def run(self, request: SimulationRequest):
-        strategy = self._build_strategy(request)
+        strategy = build_strategy(request)
 
         matches = self.repo.get_matches(
             league=request.league,
@@ -42,26 +26,3 @@ class SimulationService:
         engine = SimulationEngine(request, strategy)
 
         return engine.run(matches)
-
-
-def build_strategy(request: SimulationRequest):
-    if request.strategy_type == "home":
-        return AlwaysHomeStrategy()
-
-    if request.strategy_type == "edge":
-        return EdgeStrategy(
-            selection=request.selection,
-            min_edge=request.min_edge,
-        )
-
-    if request.strategy_type == "rules":
-        if not request.rule_expression:
-            raise ValueError("rule_expression is required for rules strategy")
-        if not request.selection:
-            raise ValueError("selection is required for rules strategy")
-        return RuleStrategy(
-            rule_expression=request.rule_expression,
-            selection=request.selection,
-        )
-
-    raise ValueError("Unsupported strategy_type")
