@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 
 from api.dependencies import get_current_user
 from app.application.dataset_service import DatasetService
+from app.application.dataset_simulation_models import DatasetSimulateRequest
+from app.domain.simulation.rules import RuleCompileError
 from app.infrastructure.db.session import get_db
 from app.infrastructure.persistence_models.user import User
 
@@ -66,3 +68,57 @@ def introspect_dataset(
         "inferred_types": info.inferred_types,
         "sample_rows": info.sample_rows,
     }
+
+
+@router.get("")
+def list_datasets(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service = DatasetService(db)
+    datasets = service.list_datasets(owner_user_id=current_user.id)
+    return [
+        {
+            "dataset_id": str(ds.id),
+            "filename": ds.original_filename,
+            "created_at": ds.created_at.isoformat() if ds.created_at else None,
+        }
+        for ds in datasets
+    ]
+
+
+@router.delete("/{dataset_id}")
+def delete_dataset(
+    dataset_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service = DatasetService(db)
+    try:
+        service.delete_dataset(dataset_id=dataset_id, owner_user_id=current_user.id)
+        return {"status": "deleted", "dataset_id": str(dataset_id)}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/{dataset_id}/simulate")
+def simulate_dataset(
+    dataset_id: UUID,
+    payload: DatasetSimulateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service = DatasetService(db)
+
+    try:
+        return service.simulate_dataset(
+            dataset_id=dataset_id,
+            owner_user_id=current_user.id,
+            mapping=payload.mapping,
+            request=payload.request,
+        )
+    except RuleCompileError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError as e:
+        # dataset not found or unsupported strategy
+        raise HTTPException(status_code=400, detail=str(e))

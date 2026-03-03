@@ -1,14 +1,8 @@
-from strategy_factory import build_strategy
-
 from app.domain.simulation.engine import SimulationEngine
 from app.domain.simulation.models import SimulationRequest
-from app.domain.simulation.rules import RuleCompileError
-from app.domain.simulation.strategy import (
-    AlwaysHomeStrategy,
-    EdgeStrategy,
-    RuleStrategy,
-)
 from app.infrastructure.repositories.match_repository import MatchRepository
+
+from .strategy_factory import build_strategy
 
 
 class SimulationService:

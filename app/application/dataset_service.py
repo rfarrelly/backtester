@@ -8,7 +8,11 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.application.strategy_factory import build_strategy
+from app.domain.simulation.engine import SimulationEngine
 from app.infrastructure.persistence_models.dataset import Dataset
+
+from .in_memory_dataset_loader import load_matches_from_csv
 
 # Stored relative to project root (works both on host + in docker-compose)
 UPLOAD_ROOT = Path(os.getenv("UPLOAD_ROOT", "app/data/uploads"))
@@ -135,3 +139,56 @@ class DatasetService:
             out[col] = infer_one(vals)
 
         return out
+
+    def list_datasets(self, *, owner_user_id):
+        return (
+            self.db.query(Dataset)
+            .filter(Dataset.owner_user_id == owner_user_id)
+            .order_by(Dataset.created_at.desc())
+            .all()
+        )
+
+    def delete_dataset(self, *, dataset_id, owner_user_id):
+        ds = self.get_owned_dataset(dataset_id=dataset_id, owner_user_id=owner_user_id)
+
+        # delete file first (best effort)
+        try:
+            path = Path(ds.stored_path)
+            if path.exists():
+                path.unlink()
+        except Exception:
+            # optionally log; don't block deletion
+            pass
+
+        self.db.delete(ds)
+        self.db.commit()
+
+    def simulate_dataset(
+        self,
+        *,
+        dataset_id,
+        owner_user_id,
+        mapping,
+        request,
+    ):
+        ds = self.get_owned_dataset(dataset_id=dataset_id, owner_user_id=owner_user_id)
+
+        # Load domain matches from stored CSV
+        matches = load_matches_from_csv(
+            ds.stored_path,
+            mapping=mapping,
+            default_league=request.league,
+            default_season=request.season,
+        )
+
+        # Filter (important even if defaults set)
+        matches = [
+            m
+            for m in matches
+            if m.league == request.league and m.season == request.season
+        ]
+
+        strategy = build_strategy(request)
+
+        engine = SimulationEngine(request, strategy)
+        return engine.run(matches)
