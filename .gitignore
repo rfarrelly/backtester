@@ -1,6 +1,8 @@
 # Python-generated files
 __pycache__/
 *.py[oc]
+*.pyc
+.pytest_cache/
 build/
 dist/
 wheels/
@@ -15,3 +17,6 @@ wheels/
 # Files
 NOTES.txt
 .DS_Store
+
+# Folders
+data/
