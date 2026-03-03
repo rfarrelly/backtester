@@ -1,10 +1,16 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-import app.infrastructure.persistence_models  # noqa: F401
+import app.infrastructure.db.models  # noqa: F401
 from api.routes import auth, data, datasets, rules, simulation, users
 from app.infrastructure.db.base import Base
 from app.infrastructure.db.session import engine
+
+
+@app.on_event("startup")
+def on_startup():
+    Base.metadata.create_all(bind=engine)
+
 
 app = FastAPI()
 
