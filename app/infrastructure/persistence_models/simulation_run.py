@@ -1,10 +1,11 @@
 import uuid
 
 from sqlalchemy import Column, DateTime, ForeignKey
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
 from app.infrastructure.db.base import Base
+from app.infrastructure.db.types import JsonType
 
 
 class SimulationRun(Base):
@@ -19,6 +20,6 @@ class SimulationRun(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    mapping_json = Column(JSONB, nullable=False)
-    request_json = Column(JSONB, nullable=False)
-    result_json = Column(JSONB, nullable=False)
+    mapping_json = Column(JsonType, nullable=False)
+    request_json = Column(JsonType, nullable=False)
+    result_json = Column(JsonType, nullable=False)

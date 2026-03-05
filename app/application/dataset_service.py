@@ -174,6 +174,7 @@ class DatasetService:
         owner_user_id,
         mapping,
         request,
+        runs_repo: SimulationRunRepository | None = None,
     ):
         ds = self.get_owned_dataset(dataset_id=dataset_id, owner_user_id=owner_user_id)
 
@@ -198,7 +199,8 @@ class DatasetService:
 
         result = engine.run(matches)
 
-        runs_repo = SimulationRunRepository(self.db)
+        if runs_repo is None:
+            runs_repo = SimulationRunRepository(self.db)
 
         run = SimulationRun(
             owner_user_id=owner_user_id,
