@@ -11,6 +11,10 @@ from sqlalchemy.orm import Session
 from app.application.strategy_factory import build_strategy
 from app.domain.simulation.engine import SimulationEngine
 from app.infrastructure.persistence_models.dataset import Dataset
+from app.infrastructure.persistence_models.simulation_run import SimulationRun
+from app.infrastructure.repositories.simulation_run_repository import (
+    SimulationRunRepository,
+)
 
 from .in_memory_dataset_loader import load_matches_from_csv
 
@@ -191,4 +195,23 @@ class DatasetService:
         strategy = build_strategy(request)
 
         engine = SimulationEngine(request, strategy)
-        return engine.run(matches)
+
+        result = engine.run(matches)
+
+        runs_repo = SimulationRunRepository(self.db)
+
+        run = SimulationRun(
+            owner_user_id=owner_user_id,
+            dataset_id=ds.id,
+            mapping_json=mapping.model_dump(),
+            request_json=request.model_dump(),
+            result_json=result,
+        )
+
+        run = runs_repo.create(run)
+
+        return {
+            "run_id": str(run.id),
+            "dataset_id": str(ds.id),
+            **result,
+        }

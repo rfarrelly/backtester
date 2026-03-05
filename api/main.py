@@ -2,15 +2,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 import app.infrastructure.db.models  # noqa: F401
-from api.routes import auth, data, datasets, rules, simulation, users
+from api.routes import auth, data, datasets, rules, runs, simulation, users
 from app.infrastructure.db.base import Base
 from app.infrastructure.db.session import engine
-
-
-@app.on_event("startup")
-def on_startup():
-    Base.metadata.create_all(bind=engine)
-
 
 app = FastAPI()
 
@@ -39,3 +33,4 @@ app.include_router(users.router)
 app.include_router(simulation.router)
 app.include_router(data.router)
 app.include_router(datasets.router)
+app.include_router(runs.router)
