@@ -174,6 +174,7 @@ class DatasetService:
         owner_user_id,
         mapping,
         request,
+        persist: bool = True,
         runs_repo: SimulationRunRepository | None = None,
     ):
         ds = self.get_owned_dataset(dataset_id=dataset_id, owner_user_id=owner_user_id)
@@ -194,10 +195,15 @@ class DatasetService:
         ]
 
         strategy = build_strategy(request)
-
         engine = SimulationEngine(request, strategy)
-
         result = engine.run(matches)
+
+        if not persist:
+            return {
+                "run_id": None,
+                "dataset_id": str(ds.id),
+                **result,
+            }
 
         if runs_repo is None:
             runs_repo = SimulationRunRepository(self.db)

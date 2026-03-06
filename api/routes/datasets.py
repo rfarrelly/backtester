@@ -116,6 +116,7 @@ def simulate_dataset(
             owner_user_id=current_user.id,
             mapping=payload.mapping,
             request=payload.request,
+            persist=payload.persist,
         )
     except RuleCompileError as e:
         raise HTTPException(status_code=400, detail=str(e))

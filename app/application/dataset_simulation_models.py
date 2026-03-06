@@ -7,3 +7,4 @@ from app.domain.simulation.models import SimulationRequest
 class DatasetSimulateRequest(BaseModel):
     mapping: DatasetMapping
     request: SimulationRequest
+    persist: bool = True
