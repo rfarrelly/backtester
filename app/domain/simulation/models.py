@@ -23,6 +23,11 @@ class SimulationRequest(BaseModel):
     min_odds: float | None = None
     min_edge: float | None = None
 
+    walk_forward: bool = False
+    train_window_matches: int | None = None
+    test_window_matches: int | None = None
+    step_matches: int | None = None
+
     @model_validator(mode="after")
     def validate_request(self):
         # Strategy requirements

@@ -194,9 +194,22 @@ class DatasetService:
             if m.league == request.league and m.season == request.season
         ]
 
-        strategy = build_strategy(request)
-        engine = SimulationEngine(request, strategy)
-        result = engine.run(matches)
+        from app.application.walk_forward_service import WalkForwardService
+
+        if request.walk_forward:
+            if not request.train_window_matches or not request.test_window_matches:
+                raise ValueError(
+                    "train_window_matches and test_window_matches are required when walk_forward=True"
+                )
+            if request.train_window_matches <= 0 or request.test_window_matches <= 0:
+                raise ValueError("walk-forward window sizes must be positive")
+            if request.step_matches is not None and request.step_matches <= 0:
+                raise ValueError("step_matches must be positive")
+            result = WalkForwardService().run(matches, request)
+        else:
+            strategy = build_strategy(request)
+            engine = SimulationEngine(request, strategy)
+            result = engine.run(matches)
 
         if not persist:
             return {
