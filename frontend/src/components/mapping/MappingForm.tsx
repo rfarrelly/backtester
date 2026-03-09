@@ -30,8 +30,8 @@ function SelectField({
         style={{ padding: 8 }}
       >
         {allowEmpty && <option value="">-- none --</option>}
-        {columns.map((col) => (
-          <option key={col} value={col}>
+        {columns.map((col, idx) => (
+          <option key={`${col}-${idx}`} value={col}>
             {col}
           </option>
         ))}
@@ -192,9 +192,8 @@ export default function MappingForm({ columns, value, onChange }: Props) {
       <div>
         <h4 style={{ marginTop: 0, marginBottom: 8 }}>Feature columns</h4>
         <div style={featureGridStyle}>
-          {columns.map((col) => (
-            <label
-              key={col}
+          {columns.map((col, idx) => (
+            <label key={`${col}-${idx}`}
               style={{
                 display: "flex",
                 alignItems: "center",

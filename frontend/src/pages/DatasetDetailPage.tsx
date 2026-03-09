@@ -172,7 +172,7 @@ export default function DatasetDetailPage() {
   const sampleRows = data.sample_rows.slice(0, 3);
 
   return (
-    <div style={{ display: "grid", gap: 20 }}>
+    <div style={{ display: "grid", gap: 20, minWidth: 0}}>
       <SectionPanel title="Dataset overview">
         <div style={{ display: "grid", gap: 6 }}>
           <div><strong>Filename:</strong> {data.filename}</div>
@@ -196,9 +196,8 @@ export default function DatasetDetailPage() {
             gap: 8,
           }}
         >
-          {data.columns.map((col) => (
-            <div
-              key={col}
+          {data.columns.map((col, idx) => (
+            <div key={`${col}-${idx}`}
               style={{
                 border: "1px solid #ddd",
                 borderRadius: 6,
