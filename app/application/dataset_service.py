@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy.orm import Session
-
+from app.application.in_memory_dataset_loader import load_matches_from_csv
 from app.application.strategy_factory import build_strategy
+from app.application.walk_forward_service import WalkForwardService
 from app.domain.simulation.engine import SimulationEngine
 from app.infrastructure.persistence_models.dataset import Dataset
 from app.infrastructure.persistence_models.simulation_run import SimulationRun
@@ -16,9 +16,6 @@ from app.infrastructure.repositories.simulation_run_repository import (
     SimulationRunRepository,
 )
 
-from .in_memory_dataset_loader import load_matches_from_csv
-
-# Stored relative to project root (works both on host + in docker-compose)
 UPLOAD_ROOT = Path(os.getenv("UPLOAD_ROOT", "app/data/uploads"))
 
 
@@ -30,37 +27,40 @@ class DatasetIntrospection:
 
 
 class DatasetService:
-    def __init__(self, db: Session):
+    def __init__(self, db):
         self.db = db
 
     def save_upload(
         self, *, owner_user_id, filename: str, file_bytes: bytes
     ) -> Dataset:
-        """Persist metadata in DB and store the CSV bytes on disk."""
-
-        # Create DB row first so we have an id for the stored filename.
-        ds = Dataset(
+        dataset = Dataset(
             owner_user_id=owner_user_id,
             original_filename=filename,
             stored_path="",
         )
-
-        self.db.add(ds)
+        self.db.add(dataset)
         self.db.commit()
-        self.db.refresh(ds)
+        self.db.refresh(dataset)
 
         user_dir = UPLOAD_ROOT / str(owner_user_id)
         user_dir.mkdir(parents=True, exist_ok=True)
 
-        stored_path = user_dir / f"{ds.id}.csv"
+        stored_path = user_dir / f"{dataset.id}.csv"
         stored_path.write_bytes(file_bytes)
 
-        ds.stored_path = str(stored_path)
-        self.db.add(ds)
+        dataset.stored_path = str(stored_path)
+        self.db.add(dataset)
         self.db.commit()
-        self.db.refresh(ds)
+        self.db.refresh(dataset)
+        return dataset
 
-        return ds
+    def list_datasets(self, *, owner_user_id):
+        return (
+            self.db.query(Dataset)
+            .filter(Dataset.owner_user_id == owner_user_id)
+            .order_by(Dataset.created_at.desc())
+            .all()
+        )
 
     def get_owned_dataset(self, *, dataset_id, owner_user_id) -> Dataset:
         ds = (
@@ -73,26 +73,41 @@ class DatasetService:
             raise ValueError("Dataset not found")
         return ds
 
+    def delete_dataset(self, *, dataset_id, owner_user_id):
+        ds = self.get_owned_dataset(dataset_id=dataset_id, owner_user_id=owner_user_id)
+
+        try:
+            p = Path(ds.stored_path)
+            if p.exists():
+                p.unlink()
+        except Exception:
+            pass
+
+        self.db.delete(ds)
+        self.db.commit()
+
     def introspect(
         self, *, dataset: Dataset, sample_size: int = 25
     ) -> DatasetIntrospection:
         path = Path(dataset.stored_path)
         if not path.exists():
-            raise ValueError("Dataset file missing")
+            raise ValueError("Dataset file missing on disk")
 
         with path.open("r", newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             columns = reader.fieldnames or []
 
-            sample_rows: list[dict[str, Any]] = []
+            rows: list[dict[str, Any]] = []
             for i, row in enumerate(reader):
-                sample_rows.append(row)
+                rows.append(row)
                 if i + 1 >= sample_size:
                     break
 
-        inferred = self._infer_types(columns, sample_rows)
+        inferred = self._infer_types(columns, rows)
         return DatasetIntrospection(
-            columns=columns, inferred_types=inferred, sample_rows=sample_rows
+            columns=columns,
+            inferred_types=inferred,
+            sample_rows=rows,
         )
 
     def _infer_types(
@@ -100,7 +115,7 @@ class DatasetService:
     ) -> dict[str, str]:
         def infer_one(values: list[str | None]) -> str:
             cleaned = [
-                str(v).strip() for v in values if v is not None and str(v).strip() != ""
+                v.strip() for v in values if v is not None and str(v).strip() != ""
             ]
             if not cleaned:
                 return "empty"
@@ -128,9 +143,8 @@ class DatasetService:
             if all(v in {"true", "false", "0", "1", "yes", "no"} for v in lowered):
                 return "bool"
 
-            # lightweight date-ish heuristic
             if all(
-                any(ch.isdigit() for ch in v) and ("-" in v or "/" in v)
+                ("-" in v or "/" in v) and any(ch.isdigit() for ch in v)
                 for v in cleaned
             ):
                 return "date_like"
@@ -141,31 +155,48 @@ class DatasetService:
         for col in columns:
             vals = [r.get(col) for r in rows]
             out[col] = infer_one(vals)
-
         return out
 
-    def list_datasets(self, *, owner_user_id):
-        return (
-            self.db.query(Dataset)
-            .filter(Dataset.owner_user_id == owner_user_id)
-            .order_by(Dataset.created_at.desc())
-            .all()
-        )
+    def _filter_matches_for_request(self, matches, request):
+        filtered = matches
 
-    def delete_dataset(self, *, dataset_id, owner_user_id):
-        ds = self.get_owned_dataset(dataset_id=dataset_id, owner_user_id=owner_user_id)
+        if request.season:
+            season = request.season.strip()
+            filtered = [m for m in filtered if m.season and m.season.strip() == season]
 
-        # delete file first (best effort)
-        try:
-            path = Path(ds.stored_path)
-            if path.exists():
-                path.unlink()
-        except Exception:
-            # optionally log; don't block deletion
-            pass
+        if request.leagues:
+            requested_leagues = {
+                league.strip()
+                for league in request.leagues
+                if league and league.strip()
+            }
+            filtered = [
+                m
+                for m in filtered
+                if m.league and m.league.strip() in requested_leagues
+            ]
+        elif request.league:
+            requested_league = request.league.strip()
+            filtered = [
+                m for m in filtered if m.league and m.league.strip() == requested_league
+            ]
 
-        self.db.delete(ds)
-        self.db.commit()
+        return filtered
+
+    def _validate_walk_forward_request(self, request):
+        if not request.walk_forward:
+            return
+
+        if not request.train_window_matches or not request.test_window_matches:
+            raise ValueError(
+                "train_window_matches and test_window_matches are required when walk_forward=True"
+            )
+
+        if request.train_window_matches <= 0 or request.test_window_matches <= 0:
+            raise ValueError("walk-forward window sizes must be positive")
+
+        if request.step_matches is not None and request.step_matches <= 0:
+            raise ValueError("step_matches must be positive")
 
     def simulate_dataset(
         self,
@@ -175,11 +206,13 @@ class DatasetService:
         mapping,
         request,
         persist: bool = True,
-        runs_repo: SimulationRunRepository | None = None,
+        runs_repo=None,
     ):
-        ds = self.get_owned_dataset(dataset_id=dataset_id, owner_user_id=owner_user_id)
+        ds = self.get_owned_dataset(
+            dataset_id=dataset_id,
+            owner_user_id=owner_user_id,
+        )
 
-        # Load domain matches from stored CSV
         matches = load_matches_from_csv(
             ds.stored_path,
             mapping=mapping,
@@ -187,24 +220,10 @@ class DatasetService:
             default_season=request.season,
         )
 
-        # Filter (important even if defaults set)
-        matches = [
-            m
-            for m in matches
-            if m.league == request.league and m.season == request.season
-        ]
-
-        from app.application.walk_forward_service import WalkForwardService
+        matches = self._filter_matches_for_request(matches, request)
+        self._validate_walk_forward_request(request)
 
         if request.walk_forward:
-            if not request.train_window_matches or not request.test_window_matches:
-                raise ValueError(
-                    "train_window_matches and test_window_matches are required when walk_forward=True"
-                )
-            if request.train_window_matches <= 0 or request.test_window_matches <= 0:
-                raise ValueError("walk-forward window sizes must be positive")
-            if request.step_matches is not None and request.step_matches <= 0:
-                raise ValueError("step_matches must be positive")
             result = WalkForwardService().run(matches, request)
         else:
             strategy = build_strategy(request)

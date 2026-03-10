@@ -37,7 +37,8 @@ function buildInitialMapping(): DatasetMapping {
 
 function buildInitialSimulationRequest(): SimulationRequest {
   return {
-    league: "",
+    league: null,
+    leagues: [],
     season: "",
     strategy_type: "home",
     selection: null,

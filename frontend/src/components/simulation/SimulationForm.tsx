@@ -28,10 +28,22 @@ export default function SimulationForm({
     <div style={{ display: "grid", gap: 16 }}>
       <div style={gridStyle}>
         <label style={{ display: "grid", gap: 4 }}>
-          <span>League</span>
+          <span>Leagues (comma-separated)</span>
           <input
-            value={value.league}
-            onChange={(e) => setField("league", e.target.value)}
+            value={(value.leagues ?? []).join(", ")}
+            onChange={(e) => {
+              const leagues = e.target.value
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean);
+
+              onChange({
+                ...value,
+                league: leagues.length === 1 ? leagues[0] : null,
+                leagues,
+              });
+            }}
+            placeholder="Premier-League, Championship"
             style={{ padding: 8 }}
           />
         </label>

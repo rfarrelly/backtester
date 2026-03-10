@@ -4,7 +4,8 @@ from pydantic import BaseModel, model_validator
 
 
 class SimulationRequest(BaseModel):
-    league: str
+    league: str | None = None
+    leagues: list[str] | None = None
     season: str
     strategy_type: Literal["home", "edge", "rules"]
 

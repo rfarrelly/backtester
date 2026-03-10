@@ -45,7 +45,8 @@ export type DatasetMapping = {
 };
 
 export type SimulationRequest = {
-  league: string;
+  league?: string | null;
+  leagues?: string[] | null;
   season: string;
   strategy_type: "home" | "edge" | "rules";
 
