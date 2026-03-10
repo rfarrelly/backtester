@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from api.dependencies import get_current_user
@@ -122,4 +122,30 @@ def simulate_dataset(
         raise HTTPException(status_code=400, detail=str(e))
     except ValueError as e:
         # dataset not found or unsupported strategy
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/{dataset_id}/distinct-values")
+def get_distinct_values(
+    dataset_id: UUID,
+    column: str = Query(...),
+    limit: int = Query(500, ge=1, le=5000),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service = DatasetService(db)
+
+    try:
+        values = service.get_distinct_values(
+            dataset_id=dataset_id,
+            owner_user_id=current_user.id,
+            column=column,
+            limit=limit,
+        )
+        return {
+            "dataset_id": str(dataset_id),
+            "column": column,
+            "values": values,
+        }
+    except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

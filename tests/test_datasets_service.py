@@ -63,3 +63,33 @@ def test_delete_dataset_removes_file_and_row(tmp_path, db_session):
     # row removed
     found = db_session.query(Dataset).filter(Dataset.id == ds.id).first()
     assert found is None
+
+
+def test_get_distinct_values_returns_sorted_unique_values(tmp_path, db_session):
+    csv_path = tmp_path / "sample.csv"
+    csv_path.write_text(
+        "League,Season,Home,Away\n"
+        "Premier-League,2425,A,B\n"
+        "Championship,2425,C,D\n"
+        "Premier-League,2425,E,F\n",
+        encoding="utf-8",
+    )
+
+    user_id = uuid.uuid4()
+    ds = Dataset(
+        owner_user_id=user_id,
+        original_filename="sample.csv",
+        stored_path=str(csv_path),
+    )
+    db_session.add(ds)
+    db_session.commit()
+    db_session.refresh(ds)
+
+    service = DatasetService(db_session)
+    values = service.get_distinct_values(
+        dataset_id=ds.id,
+        owner_user_id=user_id,
+        column="League",
+    )
+
+    assert values == ["Championship", "Premier-League"]

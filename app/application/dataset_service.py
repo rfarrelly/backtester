@@ -255,3 +255,44 @@ class DatasetService:
             "dataset_id": str(ds.id),
             **result,
         }
+
+    def get_distinct_values(
+        self,
+        *,
+        dataset_id,
+        owner_user_id,
+        column: str,
+        limit: int = 500,
+    ):
+        ds = self.get_owned_dataset(
+            dataset_id=dataset_id,
+            owner_user_id=owner_user_id,
+        )
+
+        path = Path(ds.stored_path)
+        if not path.exists():
+            raise ValueError("Dataset file missing on disk")
+
+        values = set()
+
+        with path.open("r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+
+            if not reader.fieldnames or column not in reader.fieldnames:
+                raise ValueError(f"Column '{column}' not found in dataset")
+
+            for row in reader:
+                raw = row.get(column)
+                if raw is None:
+                    continue
+
+                value = str(raw).strip()
+                if not value:
+                    continue
+
+                values.add(value)
+
+                if len(values) >= limit:
+                    break
+
+        return sorted(values)
