@@ -7,6 +7,8 @@ type Props = {
   submitting: boolean;
   persist: boolean;
   onPersistChange: (value: boolean) => void;
+  leagueOptions?: string[];
+  seasonOptions?: string[];
 };
 
 export default function SimulationForm({
@@ -16,53 +18,73 @@ export default function SimulationForm({
   submitting,
   persist,
   onPersistChange,
+  leagueOptions = [],
+  seasonOptions = [],
 }: Props) {
-  function setField<K extends keyof SimulationRequest>(key: K, fieldValue: SimulationRequest[K]) {
+  function setField<K extends keyof SimulationRequest>(
+    key: K,
+    fieldValue: SimulationRequest[K]
+  ) {
     onChange({
       ...value,
       [key]: fieldValue,
     });
   }
 
+  function toggleLeague(league: string) {
+    const current = value.leagues ?? [];
+    const exists = current.includes(league);
+
+    const nextLeagues = exists
+      ? current.filter((l) => l !== league)
+      : [...current, league];
+
+    onChange({
+      ...value,
+      league: nextLeagues.length === 1 ? nextLeagues[0] : undefined,
+      leagues: nextLeagues,
+    });
+  }
+
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <div style={gridStyle}>
-        <label style={{ display: "grid", gap: 4 }}>
-          <span>Leagues (comma-separated)</span>
-          <input
-            value={(value.leagues ?? []).join(", ")}
-            onChange={(e) => {
-              const leagues = e.target.value
-                .split(",")
-                .map((s) => s.trim())
-                .filter(Boolean);
-
-              onChange({
-                ...value,
-                league: leagues.length === 1 ? leagues[0] : null,
-                leagues,
-              });
-            }}
-            placeholder="Premier-League, Championship"
-            style={{ padding: 8 }}
-          />
-        </label>
-
-        <label style={{ display: "grid", gap: 4 }}>
-          <span>Season</span>
-          <input
-            value={value.season}
-            onChange={(e) => setField("season", e.target.value)}
-            style={{ padding: 8 }}
-          />
-        </label>
+        {seasonOptions.length > 0 ? (
+          <label style={{ display: "grid", gap: 4 }}>
+            <span>Season</span>
+            <select
+              value={value.season}
+              onChange={(e) => setField("season", e.target.value)}
+              style={{ padding: 8 }}
+            >
+              <option value="">-- select season --</option>
+              {seasonOptions.map((season, idx) => (
+                <option key={`${season}-${idx}`} value={season}>
+                  {season}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <label style={{ display: "grid", gap: 4 }}>
+            <span>Season</span>
+            <input
+              value={value.season}
+              onChange={(e) => setField("season", e.target.value)}
+              style={{ padding: 8 }}
+            />
+          </label>
+        )}
 
         <label style={{ display: "grid", gap: 4 }}>
           <span>Strategy type</span>
           <select
             value={value.strategy_type}
             onChange={(e) =>
-              setField("strategy_type", e.target.value as SimulationRequest["strategy_type"])
+              setField(
+                "strategy_type",
+                e.target.value as SimulationRequest["strategy_type"]
+              )
             }
             style={{ padding: 8 }}
           >
@@ -72,13 +94,17 @@ export default function SimulationForm({
           </select>
         </label>
 
-        {(value.strategy_type === "edge" || value.strategy_type === "rules") && (
+        {(value.strategy_type === "edge" ||
+          value.strategy_type === "rules") && (
           <label style={{ display: "grid", gap: 4 }}>
             <span>Selection</span>
             <select
               value={value.selection ?? ""}
               onChange={(e) =>
-                setField("selection", (e.target.value || null) as "H" | "D" | "A" | null)
+                setField(
+                  "selection",
+                  (e.target.value || null) as "H" | "D" | "A" | null
+                )
               }
               style={{ padding: 8 }}
             >
@@ -98,7 +124,10 @@ export default function SimulationForm({
               step="0.01"
               value={value.min_edge ?? ""}
               onChange={(e) =>
-                setField("min_edge", e.target.value === "" ? null : Number(e.target.value))
+                setField(
+                  "min_edge",
+                  e.target.value === "" ? null : Number(e.target.value)
+                )
               }
               style={{ padding: 8 }}
             />
@@ -110,7 +139,10 @@ export default function SimulationForm({
           <select
             value={value.staking_method}
             onChange={(e) =>
-              setField("staking_method", e.target.value as SimulationRequest["staking_method"])
+              setField(
+                "staking_method",
+                e.target.value as SimulationRequest["staking_method"]
+              )
             }
             style={{ padding: 8 }}
           >
@@ -127,7 +159,10 @@ export default function SimulationForm({
               type="number"
               value={value.fixed_stake ?? ""}
               onChange={(e) =>
-                setField("fixed_stake", e.target.value === "" ? null : Number(e.target.value))
+                setField(
+                  "fixed_stake",
+                  e.target.value === "" ? null : Number(e.target.value)
+                )
               }
               style={{ padding: 8 }}
             />
@@ -142,7 +177,10 @@ export default function SimulationForm({
               step="0.01"
               value={value.percent_stake ?? ""}
               onChange={(e) =>
-                setField("percent_stake", e.target.value === "" ? null : Number(e.target.value))
+                setField(
+                  "percent_stake",
+                  e.target.value === "" ? null : Number(e.target.value)
+                )
               }
               style={{ padding: 8 }}
             />
@@ -157,7 +195,10 @@ export default function SimulationForm({
               step="0.01"
               value={value.kelly_fraction ?? ""}
               onChange={(e) =>
-                setField("kelly_fraction", e.target.value === "" ? null : Number(e.target.value))
+                setField(
+                  "kelly_fraction",
+                  e.target.value === "" ? null : Number(e.target.value)
+                )
               }
               style={{ padding: 8 }}
             />
@@ -169,7 +210,9 @@ export default function SimulationForm({
           <input
             type="number"
             value={value.starting_bankroll}
-            onChange={(e) => setField("starting_bankroll", Number(e.target.value))}
+            onChange={(e) =>
+              setField("starting_bankroll", Number(e.target.value))
+            }
             style={{ padding: 8 }}
           />
         </label>
@@ -192,11 +235,75 @@ export default function SimulationForm({
             step="0.01"
             value={value.min_odds ?? ""}
             onChange={(e) =>
-              setField("min_odds", e.target.value === "" ? null : Number(e.target.value))
+              setField(
+                "min_odds",
+                e.target.value === "" ? null : Number(e.target.value)
+              )
             }
             style={{ padding: 8 }}
           />
         </label>
+      </div>
+
+      <div style={{ display: "grid", gap: 8 }}>
+        <strong>Leagues</strong>
+
+        {leagueOptions.length > 0 ? (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: 8,
+            }}
+          >
+            {leagueOptions.map((league, idx) => {
+              const checked = (value.leagues ?? []).includes(league);
+
+              return (
+                <label
+                  key={`${league}-${idx}`}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    border: "1px solid #ddd",
+                    borderRadius: 6,
+                    padding: "6px 8px",
+                    background: checked ? "#eef6ff" : "#fff",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleLeague(league)}
+                  />
+                  <span>{league}</span>
+                </label>
+              );
+            })}
+          </div>
+        ) : (
+          <label style={{ display: "grid", gap: 4 }}>
+            <span>Leagues (comma-separated)</span>
+            <input
+              value={(value.leagues ?? []).join(", ")}
+              onChange={(e) => {
+                const leagues = e.target.value
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter((s) => s.length > 0);
+
+                onChange({
+                  ...value,
+                  league: leagues.length === 1 ? leagues[0] : undefined,
+                  leagues,
+                });
+              }}
+              placeholder="Premier-League, Championship"
+              style={{ padding: 8 }}
+            />
+          </label>
+        )}
       </div>
 
       <div style={{ display: "grid", gap: 8 }}>
@@ -247,7 +354,10 @@ export default function SimulationForm({
                 type="number"
                 value={value.step_matches ?? ""}
                 onChange={(e) =>
-                  setField("step_matches", e.target.value === "" ? null : Number(e.target.value))
+                  setField(
+                    "step_matches",
+                    e.target.value === "" ? null : Number(e.target.value)
+                  )
                 }
                 style={{ padding: 8 }}
               />

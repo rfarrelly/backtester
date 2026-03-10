@@ -39,3 +39,18 @@ export async function simulateDataset(
     body: JSON.stringify(payload),
   });
 }
+
+export async function getDistinctValues(
+  datasetId: string,
+  column: string,
+  limit = 500
+): Promise<{ dataset_id: string; column: string; values: string[] }> {
+  const params = new URLSearchParams({
+    column,
+    limit: String(limit),
+  });
+
+  return apiFetch<{ dataset_id: string; column: string; values: string[] }>(
+    `/datasets/${datasetId}/distinct-values?${params.toString()}`
+  );
+}

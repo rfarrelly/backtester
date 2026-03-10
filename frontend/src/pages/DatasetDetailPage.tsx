@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { introspectDataset, simulateDataset } from "../api/datasets";
+import {
+  getDistinctValues,
+  introspectDataset,
+  simulateDataset,
+} from "../api/datasets";
 import type {
   DatasetIntrospection,
   DatasetMapping,
@@ -63,8 +67,13 @@ export default function DatasetDetailPage() {
 
   const [data, setData] = useState<DatasetIntrospection | null>(null);
   const [mapping, setMapping] = useState<DatasetMapping>(buildInitialMapping());
-  const [request, setRequest] = useState<SimulationRequest>(buildInitialSimulationRequest());
+  const [request, setRequest] = useState<SimulationRequest>(
+    buildInitialSimulationRequest()
+  );
   const [persist, setPersist] = useState(true);
+
+  const [leagueOptions, setLeagueOptions] = useState<string[]>([]);
+  const [seasonOptions, setSeasonOptions] = useState<string[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [simulating, setSimulating] = useState(false);
@@ -98,7 +107,11 @@ export default function DatasetDetailPage() {
           result_col: prev.result_col ?? defaultResultCol,
         }));
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load dataset details");
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to load dataset details"
+        );
       } finally {
         setLoading(false);
       }
@@ -106,6 +119,50 @@ export default function DatasetDetailPage() {
 
     void load();
   }, [datasetId]);
+
+  useEffect(() => {
+    async function loadLeagueOptions() {
+      if (!datasetId || !mapping.league_col) {
+        setLeagueOptions([]);
+        return;
+      }
+
+      try {
+        const res = await getDistinctValues(datasetId, mapping.league_col);
+        setLeagueOptions(res.values);
+      } catch {
+        setLeagueOptions([]);
+      }
+    }
+
+    void loadLeagueOptions();
+  }, [datasetId, mapping.league_col]);
+
+  useEffect(() => {
+    async function loadSeasonOptions() {
+      if (!datasetId || !mapping.season_col) {
+        setSeasonOptions([]);
+        return;
+      }
+
+      try {
+        const res = await getDistinctValues(datasetId, mapping.season_col);
+        setSeasonOptions(res.values);
+
+        // helpful UX: auto-select the only season if exactly one exists
+        if (res.values.length === 1) {
+          setRequest((prev) => ({
+            ...prev,
+            season: prev.season || res.values[0],
+          }));
+        }
+      } catch {
+        setSeasonOptions([]);
+      }
+    }
+
+    void loadSeasonOptions();
+  }, [datasetId, mapping.season_col]);
 
   const availableNames = useMemo(() => {
     const builtins = [
@@ -173,21 +230,25 @@ export default function DatasetDetailPage() {
   const sampleRows = data.sample_rows.slice(0, 3);
 
   return (
-    <div style={{ display: "grid", gap: 20, minWidth: 0}}>
+    <div style={{ display: "grid", gap: 20, minWidth: 0 }}>
       <SectionPanel title="Dataset overview">
         <div style={{ display: "grid", gap: 6 }}>
-          <div><strong>Filename:</strong> {data.filename}</div>
-          <div><strong>Dataset ID:</strong> {data.dataset_id}</div>
-          <div><strong>Columns:</strong> {data.columns.length}</div>
-          <div><strong>Preview rows:</strong> {data.sample_rows.length}</div>
+          <div>
+            <strong>Filename:</strong> {data.filename}
+          </div>
+          <div>
+            <strong>Dataset ID:</strong> {data.dataset_id}
+          </div>
+          <div>
+            <strong>Columns:</strong> {data.columns.length}
+          </div>
+          <div>
+            <strong>Preview rows:</strong> {sampleRows.length}
+          </div>
         </div>
       </SectionPanel>
 
-      {error && (
-        <div style={{ color: "#b00020" }}>
-          {error}
-        </div>
-      )}
+      {error && <div style={{ color: "#b00020" }}>{error}</div>}
 
       <SectionPanel title="Columns">
         <div
@@ -198,7 +259,8 @@ export default function DatasetDetailPage() {
           }}
         >
           {data.columns.map((col, idx) => (
-            <div key={`${col}-${idx}`}
+            <div
+              key={`${col}-${idx}`}
               style={{
                 border: "1px solid #ddd",
                 borderRadius: 6,
@@ -223,18 +285,18 @@ export default function DatasetDetailPage() {
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
-                  {data.columns.map((col) => (
-                    <th key={col} style={thStyle}>
+                  {data.columns.map((col, idx) => (
+                    <th key={`${col}-${idx}`} style={thStyle}>
                       {col}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {sampleRows.map((row, idx) => (
-                  <tr key={idx}>
-                    {data.columns.map((col) => (
-                      <td key={col} style={tdStyle}>
+                {sampleRows.map((row, rowIdx) => (
+                  <tr key={rowIdx}>
+                    {data.columns.map((col, colIdx) => (
+                      <td key={`${col}-${colIdx}`} style={tdStyle}>
                         {row[col] ?? ""}
                       </td>
                     ))}
@@ -258,6 +320,8 @@ export default function DatasetDetailPage() {
           submitting={simulating}
           persist={persist}
           onPersistChange={setPersist}
+          leagueOptions={leagueOptions}
+          seasonOptions={seasonOptions}
         />
       </SectionPanel>
 
