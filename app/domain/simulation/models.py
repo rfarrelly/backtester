@@ -29,6 +29,15 @@ class SimulationRequest(BaseModel):
     test_window_matches: int | None = None
     step_matches: int | None = None
 
+    period_mode: Literal["none", "custom_day_groups"] = "none"
+    custom_periods: dict[str, list[int]] | None = None
+    reset_bankroll_each_period: bool = False
+
+    max_candidates_per_period: int | None = None
+    rank_by: str | None = None
+    rank_order: Literal["asc", "desc"] = "asc"
+    require_full_candidate_count: bool = False
+
     @model_validator(mode="after")
     def validate_request(self):
         # Strategy requirements

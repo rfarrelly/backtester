@@ -11,13 +11,14 @@ def build_strategy(request: SimulationRequest):
         return AlwaysHomeStrategy()
 
     if request.strategy_type == "edge":
-        return EdgeStrategy(selection=request.selection, min_edge=request.min_edge)
+        return EdgeStrategy(
+            selection=request.selection, min_edge=request.min_edge | 0.0
+        )
 
     if request.strategy_type == "rules":
-        if not request.rule_expression:
-            raise ValueError("rule_expression is required for rules strategy")
         if not request.selection:
             raise ValueError("selection is required for rules strategy")
+
         return RuleStrategy(
             rule_expression=request.rule_expression, selection=request.selection
         )

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from app.application.calendar_period_service import CalendarPeriodService
 from app.application.in_memory_dataset_loader import load_matches_from_csv
 from app.application.strategy_factory import build_strategy
 from app.application.walk_forward_service import WalkForwardService
@@ -198,6 +199,16 @@ class DatasetService:
         if request.step_matches is not None and request.step_matches <= 0:
             raise ValueError("step_matches must be positive")
 
+    def _validate_calendar_request(self, request):
+        if request.period_mode == "none":
+            return
+
+        if request.period_mode == "custom_day_groups":
+            if not request.custom_periods:
+                raise ValueError(
+                    "custom_periods is required when period_mode='custom_day_groups'"
+                )
+
     def simulate_dataset(
         self,
         *,
@@ -222,9 +233,12 @@ class DatasetService:
 
         matches = self._filter_matches_for_request(matches, request)
         self._validate_walk_forward_request(request)
+        self._validate_calendar_request(request)
 
         if request.walk_forward:
             result = WalkForwardService().run(matches, request)
+        elif request.period_mode != "none":
+            result = CalendarPeriodService().run(matches, request)
         else:
             strategy = build_strategy(request)
             engine = SimulationEngine(request, strategy)

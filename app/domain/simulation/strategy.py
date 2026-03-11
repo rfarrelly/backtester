@@ -54,16 +54,30 @@ class EdgeStrategy(BaseStrategy):
 
 
 class RuleStrategy(BaseStrategy):
-    def __init__(self, rule_expression: str, selection: str):
+    def __init__(self, rule_expression: str | None, selection: str):
         self.rule_expression = rule_expression
         self.selection = selection
-        self._compiled = compile_rule(rule_expression)  # may raise RuleCompileError
+
+        # Allow ranking-only usage: no rule means "all matches eligible"
+        if rule_expression and rule_expression.strip():
+            self._compiled = compile_rule(rule_expression)  # may raise RuleCompileError
+        else:
+            self._compiled = None
 
     @property
     def used_names(self) -> set[str]:
+        if self._compiled is None:
+            return set()
         return self._compiled.used_names
 
-    def evaluate(self, match, context):
+    def evaluate(self, match, context=None):
+        if self.selection not in ("H", "D", "A"):
+            return StrategyDecision(False)
+
+        # No rule expression => all matches eligible
+        if self._compiled is None:
+            return StrategyDecision(True, self.selection)
+
         # Base variables (always available)
         vars_dict = {
             "home_team": match.home_team,
@@ -78,7 +92,7 @@ class RuleStrategy(BaseStrategy):
             "model_away_prob": match.model_away_prob,
         }
 
-        # Optional rolling context features (fine to keep, but they’ll often be None)
+        # Optional rolling context features
         if context is not None and hasattr(context, "features_for_match"):
             vars_dict.update(context.features_for_match(match))
 
@@ -87,11 +101,9 @@ class RuleStrategy(BaseStrategy):
 
         try:
             ok = self._compiled.func(vars_dict)
-        except NameError as e:
-            # references a variable not present in vars_dict
+        except NameError:
             return StrategyDecision(False)
         except TypeError:
-            # e.g. None > 0 etc.
             return StrategyDecision(False)
         except Exception:
             return StrategyDecision(False)

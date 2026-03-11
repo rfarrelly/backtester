@@ -355,3 +355,45 @@ def test_rule_strategy_can_use_uploaded_features():
     result = engine.run([m1])
 
     assert result["total_bets"] == 1
+
+
+def test_rule_strategy_without_expression_allows_all_matches():
+    matches = [
+        FakeMatch("A", "B", datetime(2025, 1, 1, 15, 0), "D"),
+        FakeMatch("C", "D", datetime(2025, 1, 2, 15, 0), "D"),
+    ]
+
+    strategy = RuleStrategy(rule_expression=None, selection="D")
+
+    request = SimulationRequest(
+        league="TestLeague",
+        leagues=None,
+        season="2025",
+        strategy_type="rules",
+        selection="D",
+        rule_expression=None,
+        staking_method="fixed",
+        fixed_stake=100,
+        percent_stake=None,
+        kelly_fraction=None,
+        starting_bankroll=1000,
+        multiple_legs=1,
+        min_odds=None,
+        min_edge=None,
+        walk_forward=False,
+        train_window_matches=None,
+        test_window_matches=None,
+        step_matches=None,
+        period_mode="none",
+        custom_periods=None,
+        reset_bankroll_each_period=False,
+        max_candidates_per_period=None,
+        rank_by=None,
+        rank_order="asc",
+        require_full_candidate_count=False,
+    )
+
+    engine = SimulationEngine(request, strategy)
+    result = engine.run(matches)
+
+    assert result["total_bets"] == 2
