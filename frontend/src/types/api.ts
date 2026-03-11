@@ -103,6 +103,8 @@ export type EquityPoint = {
   t?: string | null;
   bankroll: number;
   segment_index?: number;
+  period_index?: number;
+  period_label?: string;
 };
 
 export type BetLeg = {
@@ -166,6 +168,10 @@ export type SimulationResult = {
   walk_forward?: boolean;
   total_segments?: number;
   segments?: WalkForwardSegment[];
+  calendar_periods?: boolean;
+  period_mode?: "none" | "custom_day_groups";
+  total_periods?: number;
+  periods?: CalendarPeriodSummary[];
 };
 
 export type RunSummary = {
@@ -185,4 +191,20 @@ export type RunDetail = {
   mapping: DatasetMapping;
   request: SimulationRequest;
   result: SimulationResult;
+};
+
+export type CalendarPeriodSummary = {
+  period_index: number;
+  period_label: string;
+  start_kickoff: string;
+  end_kickoff: string;
+  starting_bankroll: number;
+  final_bankroll: number;
+  roi_percent: number;
+  total_bets: number;
+  total_wins?: number;
+  total_losses?: number;
+  strike_rate_percent?: number;
+  max_drawdown_percent?: number;
+  profit_factor?: number | null;
 };

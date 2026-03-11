@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   LineChart,
   Line,
@@ -33,8 +33,10 @@ export default function SimulationResultView({ result }: Props) {
       bankroll: point.bankroll,
       label:
         point.t ??
-        (point.segment_index != null
-          ? `Segment ${point.segment_index}`
+        (point.period_label
+          ? `${point.period_label} #${(point.period_index ?? 0) + 1}`
+          : point.segment_index != null
+          ? `Segment ${point.segment_index + 1}`
           : `Point ${index + 1}`),
     }));
   }, [result]);
@@ -43,8 +45,11 @@ export default function SimulationResultView({ result }: Props) {
     return <div>No simulation run yet.</div>;
   }
 
+  const isCalendarMode = Boolean((result as any).calendar_periods);
+  const calendarPeriods = (result as any).periods ?? [];
+
   return (
-    <div style={{ display: "grid", gap: 24 }}>
+    <div style={{ display: "grid", gap: 24, minWidth: 0 }}>
       <section>
         <h4 style={{ marginTop: 0 }}>Summary</h4>
         <div style={summaryGridStyle}>
@@ -73,6 +78,18 @@ export default function SimulationResultView({ result }: Props) {
             label="Profit factor"
             value={result.profit_factor != null ? formatNumber(result.profit_factor) : "-"}
           />
+          {isCalendarMode && (
+            <SummaryCard
+              label="Total periods"
+              value={String((result as any).total_periods ?? calendarPeriods.length)}
+            />
+          )}
+          {result.walk_forward && (
+            <SummaryCard
+              label="Total segments"
+              value={String(result.total_segments ?? result.segments?.length ?? 0)}
+            />
+          )}
         </div>
       </section>
 
@@ -83,16 +100,16 @@ export default function SimulationResultView({ result }: Props) {
         ) : (
           <div
             style={{
-                width: "100%",
-                maxWidth: "100%",
-                minWidth: 0,
-                height: 320,
-                border: "1px solid #ddd",
-                borderRadius: 8,
-                padding: 12,
-                background: "#fff",
-                boxSizing: "border-box",
-                overflow: "hidden",
+              width: "100%",
+              maxWidth: "100%",
+              minWidth: 0,
+              height: 320,
+              border: "1px solid #ddd",
+              borderRadius: 8,
+              padding: 12,
+              background: "#fff",
+              boxSizing: "border-box",
+              overflow: "hidden",
             }}
           >
             <ResponsiveContainer width="100%" height="100%">
@@ -100,26 +117,20 @@ export default function SimulationResultView({ result }: Props) {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
                   dataKey="index"
-                  tickFormatter={(value) => String(value + 1)}
+                  tickFormatter={(value) => String(Number(value) + 1)}
                 />
                 <YAxis domain={["auto", "auto"]} />
                 <Tooltip
-                    formatter={(value) => [value ?? "-", "Bankroll"]}
-                    labelFormatter={(label) => {
-                        if (typeof label !== "number") {
-                        return String(label ?? "");
-                        }
-
-                        const point = equityData[label];
-                        return point ? point.label : `Point ${label + 1}`;
-                    }}
+                  formatter={(value) => [value ?? "-", "Bankroll"]}
+                  labelFormatter={(label) => {
+                    if (typeof label !== "number") {
+                      return String(label ?? "");
+                    }
+                    const point = equityData[label];
+                    return point ? point.label : `Point ${label + 1}`;
+                  }}
                 />
-                <Line
-                  type="monotone"
-                  dataKey="bankroll"
-                  strokeWidth={2}
-                  dot={false}
-                />
+                <Line type="monotone" dataKey="bankroll" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -146,7 +157,7 @@ export default function SimulationResultView({ result }: Props) {
               <tbody>
                 {result.segments.map((segment) => (
                   <tr key={segment.segment_index}>
-                    <td style={tdStyle}>{segment.segment_index}</td>
+                    <td style={tdStyle}>{segment.segment_index + 1}</td>
                     <td style={tdStyle}>{segment.train_start_kickoff ?? "-"}</td>
                     <td style={tdStyle}>{segment.train_end_kickoff ?? "-"}</td>
                     <td style={tdStyle}>{segment.test_start_kickoff ?? "-"}</td>
@@ -154,6 +165,72 @@ export default function SimulationResultView({ result }: Props) {
                     <td style={tdStyle}>{formatNumber(segment.roi_percent)}</td>
                     <td style={tdStyle}>{segment.total_bets}</td>
                     <td style={tdStyle}>{formatNumber(segment.final_bankroll)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {isCalendarMode && calendarPeriods.length > 0 && (
+        <section>
+          <h4 style={{ marginTop: 0 }}>Calendar periods</h4>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>Period</th>
+                  <th style={thStyle}>Label</th>
+                  <th style={thStyle}>Start</th>
+                  <th style={thStyle}>End</th>
+                  <th style={thStyle}>Start bankroll</th>
+                  <th style={thStyle}>Final bankroll</th>
+                  <th style={thStyle}>ROI %</th>
+                  <th style={thStyle}>Bets</th>
+                  <th style={thStyle}>Strike rate %</th>
+                  <th style={thStyle}>Max DD %</th>
+                  <th style={thStyle}>Profit factor</th>
+                </tr>
+              </thead>
+              <tbody>
+                {calendarPeriods.map((period: any) => (
+                  <tr key={period.period_index}>
+                    <td style={tdStyle}>{Number(period.period_index) + 1}</td>
+                    <td style={tdStyle}>{period.period_label ?? "-"}</td>
+                    <td style={tdStyle}>{period.start_kickoff ?? "-"}</td>
+                    <td style={tdStyle}>{period.end_kickoff ?? "-"}</td>
+                    <td style={tdStyle}>
+                      {period.starting_bankroll != null
+                        ? formatNumber(period.starting_bankroll)
+                        : "-"}
+                    </td>
+                    <td style={tdStyle}>
+                      {period.final_bankroll != null
+                        ? formatNumber(period.final_bankroll)
+                        : "-"}
+                    </td>
+                    <td style={tdStyle}>
+                      {period.roi_percent != null ? formatNumber(period.roi_percent) : "-"}
+                    </td>
+                    <td style={tdStyle}>
+                      {period.total_bets != null ? String(period.total_bets) : "-"}
+                    </td>
+                    <td style={tdStyle}>
+                      {period.strike_rate_percent != null
+                        ? formatNumber(period.strike_rate_percent)
+                        : "-"}
+                    </td>
+                    <td style={tdStyle}>
+                      {period.max_drawdown_percent != null
+                        ? formatNumber(period.max_drawdown_percent)
+                        : "-"}
+                    </td>
+                    <td style={tdStyle}>
+                      {period.profit_factor != null
+                        ? formatNumber(period.profit_factor)
+                        : "-"}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -188,8 +265,8 @@ export default function SimulationResultView({ result }: Props) {
                   const expanded = expandedBetIndex === index;
 
                   return (
-                    <>
-                      <tr key={`bet-${index}`}>
+                    <React.Fragment key={`bet-group-${index}`}>
+                      <tr>
                         <td style={tdStyle}>{index + 1}</td>
                         <td style={tdStyle}>{bet.settled_at ?? "-"}</td>
                         <td style={tdStyle}>{formatNumber(bet.stake)}</td>
@@ -210,7 +287,7 @@ export default function SimulationResultView({ result }: Props) {
                       </tr>
 
                       {expanded && (
-                        <tr key={`bet-expanded-${index}`}>
+                        <tr>
                           <td style={expandedTdStyle} colSpan={9}>
                             <div style={{ display: "grid", gap: 12 }}>
                               {bet.legs.map((leg, legIndex) => (
@@ -308,7 +385,7 @@ export default function SimulationResultView({ result }: Props) {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </React.Fragment>
                   );
                 })}
               </tbody>
@@ -331,7 +408,9 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
       }}
     >
       <div style={{ fontSize: 12, color: "#666" }}>{label}</div>
-      <div style={{ marginTop: 4, fontWeight: 600 }}>{value}</div>
+      <div style={{ marginTop: 4, fontWeight: 600, wordBreak: "break-word" }}>
+        {value}
+      </div>
     </div>
   );
 }
