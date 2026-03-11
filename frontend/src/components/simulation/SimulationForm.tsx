@@ -9,6 +9,12 @@ type Props = {
   onPersistChange: (value: boolean) => void;
   leagueOptions?: string[];
   seasonOptions?: string[];
+  rankFieldOptions?: string[];
+};
+
+const WEEKEND_MIDWEEK_PRESET = {
+  weekend: [4, 5, 6, 0],
+  midweek: [1, 2, 3],
 };
 
 export default function SimulationForm({
@@ -20,6 +26,7 @@ export default function SimulationForm({
   onPersistChange,
   leagueOptions = [],
   seasonOptions = [],
+  rankFieldOptions = [],
 }: Props) {
   function setField<K extends keyof SimulationRequest>(
     key: K,
@@ -43,6 +50,29 @@ export default function SimulationForm({
       ...value,
       league: nextLeagues.length === 1 ? nextLeagues[0] : undefined,
       leagues: nextLeagues,
+    });
+  }
+
+  function handlePeriodModeChange(mode: "none" | "custom_day_groups") {
+    if (mode === "none") {
+      onChange({
+        ...value,
+        period_mode: "none",
+        custom_periods: undefined,
+        reset_bankroll_each_period: false,
+        max_candidates_per_period: undefined,
+        rank_by: undefined,
+        rank_order: "asc",
+        require_full_candidate_count: false,
+      });
+      return;
+    }
+
+    onChange({
+      ...value,
+      period_mode: "custom_day_groups",
+      custom_periods: value.custom_periods ?? WEEKEND_MIDWEEK_PRESET,
+      rank_order: value.rank_order ?? "asc",
     });
   }
 
@@ -364,7 +394,129 @@ export default function SimulationForm({
             </label>
           </div>
         )}
+      </div>
 
+      <div style={{ display: "grid", gap: 12 }}>
+        <strong>Calendar betting mode</strong>
+
+        <label style={{ display: "grid", gap: 4 }}>
+          <span>Period mode</span>
+          <select
+            value={value.period_mode ?? "none"}
+            onChange={(e) =>
+              handlePeriodModeChange(
+                e.target.value as "none" | "custom_day_groups"
+              )
+            }
+            style={{ padding: 8, maxWidth: 320 }}
+          >
+            <option value="none">none</option>
+            <option value="custom_day_groups">
+              weekend / midweek preset
+            </option>
+          </select>
+        </label>
+
+        {value.period_mode === "custom_day_groups" && (
+          <div style={{ display: "grid", gap: 12 }}>
+            <div
+              style={{
+                border: "1px solid #ddd",
+                borderRadius: 8,
+                padding: 12,
+                background: "#fafafa",
+              }}
+            >
+              <div style={{ fontWeight: 600, marginBottom: 8 }}>
+                Active day groups
+              </div>
+              <div>weekend = Fri, Sat, Sun, Mon</div>
+              <div>midweek = Tue, Wed, Thu</div>
+            </div>
+
+            <div style={gridStyle}>
+              <label style={{ display: "grid", gap: 4 }}>
+                <span>Max candidates per period</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={value.max_candidates_per_period ?? ""}
+                  onChange={(e) =>
+                    setField(
+                      "max_candidates_per_period",
+                      e.target.value === "" ? null : Number(e.target.value)
+                    )
+                  }
+                  style={{ padding: 8 }}
+                />
+              </label>
+
+              <label style={{ display: "grid", gap: 4 }}>
+                <span>Rank by</span>
+                <select
+                  value={value.rank_by ?? ""}
+                  onChange={(e) =>
+                    setField("rank_by", e.target.value || null)
+                  }
+                  style={{ padding: 8 }}
+                >
+                  <option value="">-- none --</option>
+                  {rankFieldOptions.map((field, idx) => (
+                    <option key={`${field}-${idx}`} value={field}>
+                      {field}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label style={{ display: "grid", gap: 4 }}>
+                <span>Rank order</span>
+                <select
+                  value={value.rank_order ?? "asc"}
+                  onChange={(e) =>
+                    setField(
+                      "rank_order",
+                      e.target.value as "asc" | "desc"
+                    )
+                  }
+                  style={{ padding: 8 }}
+                >
+                  <option value="asc">ascending</option>
+                  <option value="desc">descending</option>
+                </select>
+              </label>
+            </div>
+
+            <div style={{ display: "grid", gap: 8 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={value.require_full_candidate_count ?? false}
+                  onChange={(e) =>
+                    setField("require_full_candidate_count", e.target.checked)
+                  }
+                />
+                <span>
+                  Skip period unless full candidate count is available
+                </span>
+              </label>
+
+              <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={value.reset_bankroll_each_period ?? false}
+                  onChange={(e) =>
+                    setField("reset_bankroll_each_period", e.target.checked)
+                  }
+                />
+                <span>Reset bankroll for each period</span>
+              </label>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: "grid", gap: 8 }}>
         <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <input
             type="checkbox"

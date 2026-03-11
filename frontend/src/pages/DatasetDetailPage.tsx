@@ -190,6 +190,11 @@ export default function DatasetDetailPage() {
     return Array.from(new Set([...builtins, ...featureNames])).sort();
   }, [mapping.feature_cols]);
 
+  const rankFieldOptions = useMemo(() => {
+    const builtins = ["edge"];
+    return Array.from(new Set([...(mapping.feature_cols ?? []), ...builtins])).sort();
+  }, [mapping.feature_cols]);
+
   async function handleSimulate() {
     if (!datasetId) return;
 
@@ -322,6 +327,7 @@ export default function DatasetDetailPage() {
           onPersistChange={setPersist}
           leagueOptions={leagueOptions}
           seasonOptions={seasonOptions}
+          rankFieldOptions={rankFieldOptions}
         />
       </SectionPanel>
 

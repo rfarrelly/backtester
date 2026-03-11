@@ -68,6 +68,15 @@ export type SimulationRequest = {
   train_window_matches?: number | null;
   test_window_matches?: number | null;
   step_matches?: number | null;
+
+  period_mode?: "none" | "custom_day_groups";
+  custom_periods?: Record<string, number[]> | null;
+  reset_bankroll_each_period?: boolean;
+
+  max_candidates_per_period?: number | null;
+  rank_by?: string | null;
+  rank_order?: "asc" | "desc";
+  require_full_candidate_count?: boolean;
 };
 
 export type DatasetSimulateRequest = {

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import math
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -209,6 +210,23 @@ class DatasetService:
                     "custom_periods is required when period_mode='custom_day_groups'"
                 )
 
+    def _sanitize_json_value(self, value):
+        if isinstance(value, float):
+            if not math.isfinite(value):
+                return None
+            return value
+
+        if isinstance(value, dict):
+            return {k: self._sanitize_json_value(v) for k, v in value.items()}
+
+        if isinstance(value, list):
+            return [self._sanitize_json_value(v) for v in value]
+
+        return value
+
+    def _sanitize_result_for_storage(self, result: dict):
+        return self._sanitize_json_value(result)
+
     def simulate_dataset(
         self,
         *,
@@ -254,12 +272,14 @@ class DatasetService:
         if runs_repo is None:
             runs_repo = SimulationRunRepository(self.db)
 
+        sanitized_result = self._sanitize_result_for_storage(result)
+
         run = SimulationRun(
             owner_user_id=owner_user_id,
             dataset_id=ds.id,
             mapping_json=mapping.model_dump(),
             request_json=request.model_dump(),
-            result_json=result,
+            result_json=sanitized_result,
         )
 
         run = runs_repo.create(run)
