@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
   getDistinctValues,
@@ -8,6 +8,7 @@ import {
 import {
   clearSimulationDraft,
   loadSimulationDraft,
+  saveSimulationDraft,
 } from "../lib/simulationDraft";
 import type {
   DatasetIntrospection,
@@ -96,12 +97,15 @@ export default function DatasetDetailPage() {
     savedAt?: string | null;
   } | null>(null);
 
+  const hasHydratedRef = useRef(false);
+
   useEffect(() => {
     async function load() {
       if (!datasetId) return;
 
       setLoading(true);
       setError(null);
+      hasHydratedRef.current = false;
 
       try {
         const introspection = await introspectDataset(datasetId);
@@ -121,6 +125,7 @@ export default function DatasetDetailPage() {
         if (draft) {
           setMapping(draft.mapping);
           setRequest(draft.request);
+          setPersist(draft.persist ?? true);
           setLoadedDraftInfo({
             sourceRunId: draft.sourceRunId ?? null,
             savedAt: draft.savedAt ?? null,
@@ -132,7 +137,11 @@ export default function DatasetDetailPage() {
             season_col: prev.season_col ?? defaultSeasonCol,
             result_col: prev.result_col ?? defaultResultCol,
           }));
+          setPersist(true);
+          setLoadedDraftInfo(null);
         }
+
+        hasHydratedRef.current = true;
       } catch (err) {
         setError(
           err instanceof Error
@@ -191,6 +200,17 @@ export default function DatasetDetailPage() {
 
     void loadSeasonOptions();
   }, [datasetId, mapping.season_col]);
+
+  useEffect(() => {
+    if (!datasetId || !hasHydratedRef.current) return;
+
+    saveSimulationDraft(datasetId, {
+      sourceRunId: loadedDraftInfo?.sourceRunId ?? null,
+      mapping,
+      request,
+      persist,
+    });
+  }, [datasetId, mapping, request, persist, loadedDraftInfo]);
 
   const availableNames = useMemo(() => {
     const builtins = [
@@ -252,6 +272,7 @@ export default function DatasetDetailPage() {
     setLoadedDraftInfo(null);
     setMapping(buildInitialMapping());
     setRequest(buildInitialSimulationRequest());
+    setPersist(true);
     setResult(null);
   }
 

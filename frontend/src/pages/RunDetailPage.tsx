@@ -77,6 +77,7 @@ export default function RunDetailPage() {
       request: {
         ...run.request,
       },
+      persist: true,
     });
 
     navigate(`/datasets/${run.dataset_id}`);

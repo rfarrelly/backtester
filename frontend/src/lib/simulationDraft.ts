@@ -4,6 +4,7 @@ export type SimulationDraft = {
   sourceRunId?: string | null;
   mapping: DatasetMapping;
   request: SimulationRequest;
+  persist?: boolean;
   savedAt: string;
 };
 
