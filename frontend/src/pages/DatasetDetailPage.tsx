@@ -5,6 +5,10 @@ import {
   introspectDataset,
   simulateDataset,
 } from "../api/datasets";
+import {
+  clearSimulationDraft,
+  loadSimulationDraft,
+} from "../lib/simulationDraft";
 import type {
   DatasetIntrospection,
   DatasetMapping,
@@ -59,6 +63,13 @@ function buildInitialSimulationRequest(): SimulationRequest {
     train_window_matches: null,
     test_window_matches: null,
     step_matches: null,
+    period_mode: "none",
+    custom_periods: null,
+    reset_bankroll_each_period: false,
+    max_candidates_per_period: null,
+    rank_by: null,
+    rank_order: "asc",
+    require_full_candidate_count: false,
   };
 }
 
@@ -80,6 +91,11 @@ export default function DatasetDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SimulationResult | null>(null);
 
+  const [loadedDraftInfo, setLoadedDraftInfo] = useState<{
+    sourceRunId?: string | null;
+    savedAt?: string | null;
+  } | null>(null);
+
   useEffect(() => {
     async function load() {
       if (!datasetId) return;
@@ -100,12 +116,23 @@ export default function DatasetDetailPage() {
           ? "result"
           : null;
 
-        setMapping((prev) => ({
-          ...prev,
-          league_col: prev.league_col ?? defaultLeagueCol,
-          season_col: prev.season_col ?? defaultSeasonCol,
-          result_col: prev.result_col ?? defaultResultCol,
-        }));
+        const draft = loadSimulationDraft(datasetId);
+
+        if (draft) {
+          setMapping(draft.mapping);
+          setRequest(draft.request);
+          setLoadedDraftInfo({
+            sourceRunId: draft.sourceRunId ?? null,
+            savedAt: draft.savedAt ?? null,
+          });
+        } else {
+          setMapping((prev) => ({
+            ...prev,
+            league_col: prev.league_col ?? defaultLeagueCol,
+            season_col: prev.season_col ?? defaultSeasonCol,
+            result_col: prev.result_col ?? defaultResultCol,
+          }));
+        }
       } catch (err) {
         setError(
           err instanceof Error
@@ -130,7 +157,8 @@ export default function DatasetDetailPage() {
       try {
         const res = await getDistinctValues(datasetId, mapping.league_col);
         setLeagueOptions(res.values);
-      } catch {
+      } catch (err) {
+        console.error("Failed to load league options", err);
         setLeagueOptions([]);
       }
     }
@@ -149,14 +177,14 @@ export default function DatasetDetailPage() {
         const res = await getDistinctValues(datasetId, mapping.season_col);
         setSeasonOptions(res.values);
 
-        // helpful UX: auto-select the only season if exactly one exists
         if (res.values.length === 1) {
           setRequest((prev) => ({
             ...prev,
             season: prev.season || res.values[0],
           }));
         }
-      } catch {
+      } catch (err) {
+        console.error("Failed to load season options", err);
         setSeasonOptions([]);
       }
     }
@@ -184,6 +212,7 @@ export default function DatasetDetailPage() {
       "away_goal_diff",
       "points_diff",
       "goal_diff_diff",
+      "edge",
     ];
 
     const featureNames = mapping.feature_cols ?? [];
@@ -214,6 +243,16 @@ export default function DatasetDetailPage() {
     } finally {
       setSimulating(false);
     }
+  }
+
+  function handleClearLoadedDraft() {
+    if (!datasetId) return;
+
+    clearSimulationDraft(datasetId);
+    setLoadedDraftInfo(null);
+    setMapping(buildInitialMapping());
+    setRequest(buildInitialSimulationRequest());
+    setResult(null);
   }
 
   if (!datasetId) {
@@ -252,6 +291,43 @@ export default function DatasetDetailPage() {
           </div>
         </div>
       </SectionPanel>
+
+      {loadedDraftInfo && (
+        <section
+          style={{
+            border: "1px solid #cfe3ff",
+            borderRadius: 10,
+            padding: 16,
+            background: "#eef6ff",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 12,
+              alignItems: "start",
+              flexWrap: "wrap",
+            }}
+          >
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontWeight: 600 }}>Loaded simulator draft</div>
+              {loadedDraftInfo.sourceRunId && (
+                <div>
+                  <strong>Source run:</strong> {loadedDraftInfo.sourceRunId}
+                </div>
+              )}
+              {loadedDraftInfo.savedAt && (
+                <div>
+                  <strong>Saved at:</strong> {loadedDraftInfo.savedAt}
+                </div>
+              )}
+            </div>
+
+            <button onClick={handleClearLoadedDraft}>Clear loaded draft</button>
+          </div>
+        </section>
+      )}
 
       {error && <div style={{ color: "#b00020" }}>{error}</div>}
 

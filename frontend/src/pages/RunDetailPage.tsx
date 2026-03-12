@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { deleteRun, downloadRunBetsCsv, getRun } from "../api/runs";
 import type { RunDetail } from "../types/api";
+import { saveSimulationDraft } from "../lib/simulationDraft";
 import SimulationResultView from "../components/results/SimulationResultView";
 
 export default function RunDetailPage() {
@@ -67,6 +68,20 @@ export default function RunDetailPage() {
     }
   }
 
+  function handleLoadIntoSimulator() {
+    if (!run) return;
+
+    saveSimulationDraft(run.dataset_id, {
+      sourceRunId: run.run_id,
+      mapping: run.mapping,
+      request: {
+        ...run.request,
+      },
+    });
+
+    navigate(`/datasets/${run.dataset_id}`);
+  }
+
   if (!runId) {
     return <div>Missing run id.</div>;
   }
@@ -117,9 +132,15 @@ export default function RunDetailPage() {
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <Link to="/runs">Back to runs</Link>
+
+            <button onClick={handleLoadIntoSimulator} disabled={busy}>
+              Load into simulator
+            </button>
+
             <button onClick={handleExport} disabled={busy}>
               {busy ? "Working..." : "Export CSV"}
             </button>
+
             <button onClick={handleDelete} disabled={busy}>
               {busy ? "Working..." : "Delete run"}
             </button>
@@ -169,6 +190,22 @@ export default function RunDetailPage() {
           <InfoCard
             label="Walk-forward"
             value={run.request.walk_forward ? "Yes" : "No"}
+          />
+          <InfoCard
+            label="Period mode"
+            value={run.request.period_mode ?? "none"}
+          />
+          <InfoCard
+            label="Rank by"
+            value={run.request.rank_by ?? "-"}
+          />
+          <InfoCard
+            label="Max candidates / period"
+            value={
+              run.request.max_candidates_per_period != null
+                ? String(run.request.max_candidates_per_period)
+                : "-"
+            }
           />
         </div>
       </section>
