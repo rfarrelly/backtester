@@ -184,6 +184,10 @@ export default function SimulationResultView({ result }: Props) {
                   <th style={thStyle}>Label</th>
                   <th style={thStyle}>Start</th>
                   <th style={thStyle}>End</th>
+                  <th style={thStyle}>Matches</th>
+                  <th style={thStyle}>Eligible</th>
+                  <th style={thStyle}>Selected</th>
+                  <th style={thStyle}>Bets created</th>
                   <th style={thStyle}>Start bankroll</th>
                   <th style={thStyle}>Final bankroll</th>
                   <th style={thStyle}>ROI %</th>
@@ -201,6 +205,26 @@ export default function SimulationResultView({ result }: Props) {
                     <td style={tdStyle}>{period.start_kickoff ?? "-"}</td>
                     <td style={tdStyle}>{period.end_kickoff ?? "-"}</td>
                     <td style={tdStyle}>
+                      {period.matches_in_period != null
+                        ? String(period.matches_in_period)
+                        : "-"}
+                    </td>
+                    <td style={tdStyle}>
+                      {period.eligible_candidates != null
+                        ? String(period.eligible_candidates)
+                        : "-"}
+                    </td>
+                    <td style={tdStyle}>
+                      {period.selected_candidates != null
+                        ? String(period.selected_candidates)
+                        : "-"}
+                    </td>
+                    <td style={tdStyle}>
+                      {period.bets_created != null
+                        ? String(period.bets_created)
+                        : "-"}
+                    </td>
+                    <td style={tdStyle}>
                       {period.starting_bankroll != null
                         ? formatNumber(period.starting_bankroll)
                         : "-"}
@@ -211,7 +235,9 @@ export default function SimulationResultView({ result }: Props) {
                         : "-"}
                     </td>
                     <td style={tdStyle}>
-                      {period.roi_percent != null ? formatNumber(period.roi_percent) : "-"}
+                      {period.roi_percent != null
+                        ? formatNumber(period.roi_percent)
+                        : "-"}
                     </td>
                     <td style={tdStyle}>
                       {period.total_bets != null ? String(period.total_bets) : "-"}

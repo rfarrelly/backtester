@@ -207,4 +207,8 @@ export type CalendarPeriodSummary = {
   strike_rate_percent?: number;
   max_drawdown_percent?: number;
   profit_factor?: number | null;
+  matches_in_period?: number;
+  eligible_candidates?: number;
+  selected_candidates?: number;
+  bets_created?: number;
 };

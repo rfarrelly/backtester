@@ -159,6 +159,10 @@ class CalendarPeriodService:
                     "strike_rate_percent": period_metrics["strike_rate_percent"],
                     "max_drawdown_percent": period_metrics["max_drawdown_percent"],
                     "profit_factor": period_metrics["profit_factor"],
+                    "matches_in_period": len(bucket.matches),
+                    "eligible_candidates": len(candidates),
+                    "selected_candidates": len(selected),
+                    "bets_created": len(period_settled_bets),
                 }
             )
 
