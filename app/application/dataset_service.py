@@ -250,45 +250,16 @@ class DatasetService:
         )
 
         matches = self._filter_matches_for_request(matches, request)
-        self._validate_walk_forward_request(request)
-        self._validate_calendar_request(request)
 
-        if request.walk_forward:
-            result = WalkForwardService().run(matches, request)
-        elif request.period_mode != "none":
-            result = CalendarPeriodService().run(matches, request)
-        else:
-            strategy = build_strategy(request)
-            engine = SimulationEngine(request, strategy)
-            result = engine.run(matches)
-
-        if not persist:
-            return {
-                "run_id": None,
-                "dataset_id": str(ds.id),
-                **result,
-            }
-
-        if runs_repo is None:
-            runs_repo = SimulationRunRepository(self.db)
-
-        sanitized_result = self._sanitize_result_for_storage(result)
-
-        run = SimulationRun(
+        return self.simulate_loaded_matches(
+            dataset=ds,
             owner_user_id=owner_user_id,
-            dataset_id=ds.id,
-            mapping_json=mapping.model_dump(),
-            request_json=request.model_dump(),
-            result_json=sanitized_result,
+            mapping=mapping,
+            request=request,
+            matches=matches,
+            persist=persist,
+            runs_repo=runs_repo,
         )
-
-        run = runs_repo.create(run)
-
-        return {
-            "run_id": str(run.id),
-            "dataset_id": str(ds.id),
-            **result,
-        }
 
     def get_distinct_values(
         self,
@@ -330,3 +301,54 @@ class DatasetService:
                     break
 
         return sorted(values)
+
+    def simulate_loaded_matches(
+        self,
+        *,
+        dataset,
+        owner_user_id,
+        mapping,
+        request,
+        matches,
+        persist: bool = True,
+        runs_repo=None,
+    ):
+        self._validate_walk_forward_request(request)
+        self._validate_calendar_request(request)
+
+        if request.walk_forward:
+            result = WalkForwardService().run(matches, request)
+        elif request.period_mode != "none":
+            result = CalendarPeriodService().run(matches, request)
+        else:
+            strategy = build_strategy(request)
+            engine = SimulationEngine(request, strategy)
+            result = engine.run(matches)
+
+        if not persist:
+            return {
+                "run_id": None,
+                "dataset_id": str(dataset.id),
+                **result,
+            }
+
+        if runs_repo is None:
+            runs_repo = SimulationRunRepository(self.db)
+
+        sanitized_result = self._sanitize_result_for_storage(result)
+
+        run = SimulationRun(
+            owner_user_id=owner_user_id,
+            dataset_id=dataset.id,
+            mapping_json=mapping.model_dump(),
+            request_json=request.model_dump(),
+            result_json=sanitized_result,
+        )
+
+        run = runs_repo.create(run)
+
+        return {
+            "run_id": str(run.id),
+            "dataset_id": str(dataset.id),
+            **result,
+        }

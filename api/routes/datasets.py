@@ -6,9 +6,11 @@ from sqlalchemy.orm import Session
 from api.dependencies import get_current_user
 from app.application.dataset_service import DatasetService
 from app.application.dataset_simulation_models import DatasetSimulateRequest
+from app.application.dataset_sweep_service import DatasetSweepService
 from app.domain.simulation.rules import RuleCompileError
 from app.infrastructure.db.session import get_db
 from app.infrastructure.persistence_models.user import User
+from app.schemas.sweep import DatasetSweepRequest, DatasetSweepResponse
 
 router = APIRouter(prefix="/datasets", tags=["datasets"])
 
@@ -147,5 +149,27 @@ def get_distinct_values(
             "column": column,
             "values": values,
         }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{dataset_id}/sweeps", response_model=DatasetSweepResponse)
+def run_dataset_sweep(
+    dataset_id: UUID,
+    body: DatasetSweepRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service = DatasetSweepService(db)
+
+    try:
+        return service.run_sweep(
+            dataset_id=dataset_id,
+            owner_user_id=current_user.id,
+            mapping=body.mapping,
+            base_request=body.base_request,
+            grid=body.grid,
+            persist_runs=body.persist_runs,
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
