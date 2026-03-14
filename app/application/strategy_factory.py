@@ -12,7 +12,8 @@ def build_strategy(request: SimulationRequest):
 
     if request.strategy_type == "edge":
         return EdgeStrategy(
-            selection=request.selection, min_edge=request.min_edge | 0.0
+            selection=request.selection,
+            min_edge=0.0 if request.min_edge is None else request.min_edge,
         )
 
     if request.strategy_type == "rules":
