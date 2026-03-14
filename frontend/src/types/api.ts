@@ -212,3 +212,28 @@ export type CalendarPeriodSummary = {
   selected_candidates?: number;
   bets_created?: number;
 };
+
+export type DatasetSweepRequest = {
+  mapping: DatasetMapping;
+  base_request: SimulationRequest;
+  grid: Record<string, unknown[]>;
+  persist_runs: boolean;
+};
+
+export type SweepVariantResult = {
+  params: Record<string, unknown>;
+  run_id?: string | null;
+  roi_percent: number;
+  final_bankroll: number;
+  total_bets: number;
+  max_drawdown_percent?: number | null;
+  strike_rate_percent?: number | null;
+  profit_factor?: number | null;
+  average_odds?: number | null;
+  total_profit?: number | null;
+};
+
+export type DatasetSweepResponse = {
+  total_variants: number;
+  results: SweepVariantResult[];
+};

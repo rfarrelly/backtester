@@ -20,6 +20,10 @@ import MappingForm from "../components/mapping/MappingForm";
 import RuleEditor from "../components/rules/RuleEditor";
 import SimulationForm from "../components/simulation/SimulationForm";
 import SimulationResultView from "../components/results/SimulationResultView";
+import { runDatasetSweep } from "../api/sweeps";
+import type { DatasetSweepResponse } from "../types/api";
+import SweepForm from "../components/sweeps/SweepForm";
+import SweepResultsView from "../components/sweeps/SweepResultsView";
 
 function buildInitialMapping(): DatasetMapping {
   return {
@@ -98,6 +102,10 @@ export default function DatasetDetailPage() {
   } | null>(null);
 
   const hasHydratedRef = useRef(false);
+
+  const [sweeping, setSweeping] = useState(false);
+  const [sweepPersistRuns, setSweepPersistRuns] = useState(true);
+  const [sweepResult, setSweepResult] = useState<DatasetSweepResponse | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -265,6 +273,31 @@ export default function DatasetDetailPage() {
     }
   }
 
+  async function handleRunSweep(
+    grid: Record<string, unknown[]>,
+    persistRuns: boolean
+  ) {
+    if (!datasetId) return;
+
+    setSweeping(true);
+    setError(null);
+    setSweepResult(null);
+
+    try {
+      const res = await runDatasetSweep(datasetId, {
+        mapping,
+        base_request: request,
+        grid,
+        persist_runs: persistRuns,
+      });
+      setSweepResult(res);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sweep failed");
+    } finally {
+      setSweeping(false);
+    }
+  }
+
   function handleClearLoadedDraft() {
     if (!datasetId) return;
 
@@ -426,6 +459,20 @@ export default function DatasetDetailPage() {
           seasonOptions={seasonOptions}
           rankFieldOptions={rankFieldOptions}
         />
+      </SectionPanel>
+
+      <SectionPanel title="Parameter sweep">
+        <SweepForm
+          availableFields={rankFieldOptions}
+          persistRuns={sweepPersistRuns}
+          onPersistRunsChange={setSweepPersistRuns}
+          onSubmit={handleRunSweep}
+          submitting={sweeping}
+        />
+      </SectionPanel>
+
+      <SectionPanel title="Sweep results">
+        <SweepResultsView result={sweepResult} />
       </SectionPanel>
 
       {request.strategy_type === "rules" && (
