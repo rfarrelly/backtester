@@ -53,7 +53,6 @@ function buildInitialSimulationRequest(): SimulationRequest {
     league: null,
     leagues: [],
     season: "",
-    strategy_type: "rules",
     selection: null,
     rule_expression: null,
     staking_method: "fixed",
@@ -80,7 +79,6 @@ function buildInitialSimulationRequest(): SimulationRequest {
 function normalizeRequest(request: SimulationRequest): SimulationRequest {
   return {
     ...request,
-    strategy_type: "rules",
   };
 }
 

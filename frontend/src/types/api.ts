@@ -44,13 +44,19 @@ export type DatasetMapping = {
   feature_cols: string[];
 };
 
+export type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+
+export type CustomPeriodDefinition = {
+  name: string;
+  start_day: DayKey;
+  end_day: DayKey;
+};
+
 export type SimulationRequest = {
   league?: string | null;
   leagues?: string[] | null;
   season: string;
 
-  // kept temporarily for compatibility with current backend payloads
-  strategy_type?: "home" | "edge" | "rules";
   selection?: "H" | "D" | "A" | null;
   rule_expression?: string | null;
 
@@ -69,8 +75,8 @@ export type SimulationRequest = {
   test_window_matches?: number | null;
   step_matches?: number | null;
 
-  period_mode?: "none" | "custom_day_groups";
-  custom_periods?: Record<string, number[]> | null;
+  period_mode?: "none" | "custom";
+  custom_periods?: CustomPeriodDefinition[] | null;
   reset_bankroll_each_period?: boolean;
 
   max_candidates_per_period?: number | null;
@@ -166,7 +172,7 @@ export type SimulationResult = {
   segments?: WalkForwardSegment[];
 
   calendar_periods?: boolean;
-  period_mode?: "none" | "custom_day_groups";
+  period_mode?: "none" | "custom";
   total_periods?: number;
   periods?: CalendarPeriodSummary[];
 };
@@ -202,7 +208,7 @@ export type CalendarPeriodSummary = {
   total_wins?: number;
   total_losses?: number;
   strike_rate_percent?: number;
-  max_drawdown_percent?: number;
+  max_drawdown_percent?: number | null;
   profit_factor?: number | null;
   matches_in_period?: number;
   eligible_candidates?: number;

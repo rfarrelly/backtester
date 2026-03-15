@@ -76,7 +76,6 @@ export default function RunDetailPage() {
       mapping: run.mapping,
       request: {
         ...run.request,
-        strategy_type: "rules",
       },
       persist: true,
     });

@@ -206,9 +206,7 @@ class DatasetService:
 
         if request.period_mode == "custom":
             if not request.custom_periods:
-                raise ValueError(
-                    "custom_periods is required when period_mode='custom_day_groups'"
-                )
+                raise ValueError("custom_periods is required when period_mode='custom'")
 
     def _sanitize_json_value(self, value):
         if isinstance(value, float):

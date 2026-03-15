@@ -1,4 +1,10 @@
-import type { SimulationRequest } from "../../types/api";
+import { useMemo } from "react";
+
+import type {
+  CustomPeriodDefinition,
+  SimulationRequest,
+} from "../../types/api";
+import CustomPeriodBuilder from "../CustomPeriodBuilder";
 
 type Props = {
   value: SimulationRequest;
@@ -12,10 +18,32 @@ type Props = {
   rankFieldOptions?: string[];
 };
 
-const WEEKEND_MIDWEEK_PRESET = {
-  weekend: [4, 5, 6, 0],
-  midweek: [1, 2, 3],
-};
+const DEFAULT_CUSTOM_PERIODS: CustomPeriodDefinition[] = [
+  { name: "Weekend", start_day: "fri", end_day: "mon" },
+  { name: "Midweek", start_day: "tue", end_day: "thu" },
+];
+
+function validateCustomPeriods(periods: CustomPeriodDefinition[]): string[] {
+  const errors: string[] = [];
+
+  if (!periods.length) {
+    errors.push("Add at least one custom period.");
+    return errors;
+  }
+
+  const normalizedNames = periods.map((period) => period.name.trim().toLowerCase());
+
+  if (normalizedNames.some((name) => name.length === 0)) {
+    errors.push("Each custom period must have a name.");
+  }
+
+  const nonEmptyNames = normalizedNames.filter((name) => name.length > 0);
+  if (new Set(nonEmptyNames).size !== nonEmptyNames.length) {
+    errors.push("Custom period names must be unique.");
+  }
+
+  return errors;
+}
 
 export default function SimulationForm({
   value,
@@ -28,6 +56,14 @@ export default function SimulationForm({
   seasonOptions = [],
   rankFieldOptions = [],
 }: Props) {
+  const customPeriodErrors = useMemo(
+    () =>
+      value.period_mode === "custom"
+        ? validateCustomPeriods(value.custom_periods ?? [])
+        : [],
+    [value.period_mode, value.custom_periods]
+  );
+
   function setField<K extends keyof SimulationRequest>(
     key: K,
     fieldValue: SimulationRequest[K]
@@ -35,7 +71,6 @@ export default function SimulationForm({
     onChange({
       ...value,
       [key]: fieldValue,
-      strategy_type: "rules",
     });
   }
 
@@ -49,7 +84,6 @@ export default function SimulationForm({
 
     onChange({
       ...value,
-      strategy_type: "rules",
       league: nextLeagues.length === 1 ? nextLeagues[0] : undefined,
       leagues: nextLeagues,
     });
@@ -59,7 +93,6 @@ export default function SimulationForm({
     if (mode === "none") {
       onChange({
         ...value,
-        strategy_type: "rules",
         period_mode: "none",
         custom_periods: undefined,
         reset_bankroll_each_period: false,
@@ -73,11 +106,27 @@ export default function SimulationForm({
 
     onChange({
       ...value,
-      strategy_type: "rules",
-      period_mode: "custom_day_groups",
-      custom_periods: value.custom_periods ?? WEEKEND_MIDWEEK_PRESET,
+      period_mode: "custom",
+      custom_periods:
+        value.custom_periods && value.custom_periods.length > 0
+          ? value.custom_periods
+          : DEFAULT_CUSTOM_PERIODS,
       rank_order: value.rank_order ?? "asc",
     });
+  }
+
+  function handleCustomPeriodsChange(custom_periods: CustomPeriodDefinition[]) {
+    onChange({
+      ...value,
+      custom_periods,
+    });
+  }
+
+  function handleSubmit() {
+    if (customPeriodErrors.length > 0) {
+      return;
+    }
+    onSubmit();
   }
 
   return (
@@ -290,7 +339,6 @@ export default function SimulationForm({
 
                 onChange({
                   ...value,
-                  strategy_type: "rules",
                   league: leagues.length === 1 ? leagues[0] : undefined,
                   leagues,
                 });
@@ -370,35 +418,38 @@ export default function SimulationForm({
           <select
             value={value.period_mode ?? "none"}
             onChange={(e) =>
-              handlePeriodModeChange(
-                e.target.value as "none" | "custom"
-              )
+              handlePeriodModeChange(e.target.value as "none" | "custom")
             }
             style={{ padding: 8, maxWidth: 320 }}
           >
             <option value="none">none</option>
-            <option value="custom_day_groups">
-              weekend / midweek preset
-            </option>
+            <option value="custom">custom weekly periods</option>
           </select>
         </label>
 
-        {value.period_mode === "custom_day_groups" && (
+        {value.period_mode === "custom" && (
           <div style={{ display: "grid", gap: 12 }}>
-            <div
-              style={{
-                border: "1px solid #ddd",
-                borderRadius: 8,
-                padding: 12,
-                background: "#fafafa",
-              }}
-            >
-              <div style={{ fontWeight: 600, marginBottom: 8 }}>
-                Active day groups
+            <CustomPeriodBuilder
+              value={value.custom_periods ?? []}
+              onChange={handleCustomPeriodsChange}
+              disabled={submitting}
+            />
+
+            {customPeriodErrors.length > 0 && (
+              <div
+                style={{
+                  border: "1px solid #f0c36d",
+                  borderRadius: 8,
+                  padding: 12,
+                  background: "#fff7e6",
+                  color: "#7a4d00",
+                }}
+              >
+                {customPeriodErrors.map((error, index) => (
+                  <div key={`custom-period-error-${index}`}>{error}</div>
+                ))}
               </div>
-              <div>weekend = Fri, Sat, Sun, Mon</div>
-              <div>midweek = Tue, Wed, Thu</div>
-            </div>
+            )}
 
             <div style={gridStyle}>
               <label style={{ display: "grid", gap: 4 }}>
@@ -421,9 +472,7 @@ export default function SimulationForm({
                 <span>Rank by</span>
                 <select
                   value={value.rank_by ?? ""}
-                  onChange={(e) =>
-                    setField("rank_by", e.target.value || null)
-                  }
+                  onChange={(e) => setField("rank_by", e.target.value || null)}
                   style={{ padding: 8 }}
                 >
                   <option value="">-- none --</option>
@@ -440,10 +489,7 @@ export default function SimulationForm({
                 <select
                   value={value.rank_order ?? "asc"}
                   onChange={(e) =>
-                    setField(
-                      "rank_order",
-                      e.target.value as "asc" | "desc"
-                    )
+                    setField("rank_order", e.target.value as "asc" | "desc")
                   }
                   style={{ padding: 8 }}
                 >
@@ -462,9 +508,7 @@ export default function SimulationForm({
                     setField("require_full_candidate_count", e.target.checked)
                   }
                 />
-                <span>
-                  Skip period unless full candidate count is available
-                </span>
+                <span>Skip period unless full candidate count is available</span>
               </label>
 
               <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -494,7 +538,11 @@ export default function SimulationForm({
       </div>
 
       <div>
-        <button onClick={onSubmit} disabled={submitting}>
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={submitting || customPeriodErrors.length > 0}
+        >
           {submitting ? "Running..." : "Run simulation"}
         </button>
       </div>
