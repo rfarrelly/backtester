@@ -61,8 +61,7 @@ def test_simulate_dataset_persists_run_record(tmp_path, db_session):
     request = SimulationRequest(
         league="TestLeague",
         season="2025",
-        strategy_type="home",
-        selection=None,
+        selection="H",
         rule_expression=None,
         staking_method="fixed",
         fixed_stake=100,
@@ -130,8 +129,7 @@ def test_simulate_dataset_without_persist_does_not_create_run(tmp_path, db_sessi
     request = SimulationRequest(
         league="TestLeague",
         season="2025",
-        strategy_type="home",
-        selection=None,
+        selection="H",
         rule_expression=None,
         staking_method="fixed",
         fixed_stake=100,

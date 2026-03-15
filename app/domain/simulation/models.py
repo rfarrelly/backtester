@@ -10,9 +10,6 @@ class SimulationRequest(BaseModel):
     season: str
 
     # Strategy model
-    # Kept temporarily for compatibility, but the application now
-    # always uses rule-based strategy construction internally.
-    strategy_type: Literal["home", "edge", "rules"] = "rules"
     selection: Literal["H", "D", "A"] | None = None
     rule_expression: str | None = None
 

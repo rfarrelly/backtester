@@ -50,7 +50,7 @@ def test_export_run_bets_csv(client, db_session):
         owner_user_id=user_id,
         dataset_id=ds.id,
         mapping_json={"home_team_col": "HomeTeam"},
-        request_json={"strategy_type": "home"},
+        request_json={"selection": "H"},
         result_json={
             "bets": [
                 {

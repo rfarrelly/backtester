@@ -57,7 +57,7 @@ def _insert_run(db_session, owner_user_id, dataset_id, roi=12.34):
         owner_user_id=owner_user_id,
         dataset_id=dataset_id,
         mapping_json={"home_team_col": "HomeTeam"},
-        request_json={"strategy_type": "home", "staking_method": "fixed"},
+        request_json={"selection": "H", "staking_method": "fixed"},
         result_json={
             "roi_percent": roi,
             "final_bankroll": 1111.0,

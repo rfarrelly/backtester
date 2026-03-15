@@ -132,6 +132,7 @@ class SimulationEngine:
         self.active_bets = []
         self.settled_bets = []
         self.team_locks = {}
+        self.pending_candidates = []
 
         # Metrics tracking
         self.max_drawdown = 0
@@ -169,7 +170,6 @@ class SimulationEngine:
             "run_config": {
                 "league": self.request.league,
                 "season": self.request.season,
-                "strategy_type": self.request.strategy_type,
                 "selection": self.request.selection,
                 "staking_method": self.request.staking_method,
                 "fixed_stake": self.request.fixed_stake,
@@ -214,11 +214,31 @@ class SimulationEngine:
 
             eligible.append((match, decision.selection))
 
-        if len(eligible) >= self.request.multiple_legs:
-            combo = build_valid_combo(eligible, self.request.multiple_legs)
+        if self.request.multiple_legs <= 1:
+            for candidate in eligible:
+                self._attempt_place_bet([candidate])
+        else:
+            self.pending_candidates.extend(eligible)
 
-            if combo:
-                self._attempt_place_bet(combo)
+            while len(self.pending_candidates) >= self.request.multiple_legs:
+                combo = build_valid_combo(
+                    self.pending_candidates,
+                    self.request.multiple_legs,
+                )
+
+                if not combo:
+                    break
+
+                placed = self._attempt_place_bet(combo)
+                if not placed:
+                    break
+
+                used_match_ids = {match.id for match, _ in combo}
+                self.pending_candidates = [
+                    candidate
+                    for candidate in self.pending_candidates
+                    if candidate[0].id not in used_match_ids
+                ]
 
         # ALWAYS update context
         for match in batch:
@@ -237,7 +257,7 @@ class SimulationEngine:
             }[selection]
 
             if self.request.min_odds is not None and odds < self.request.min_odds:
-                return
+                return False
 
             combined_odds *= odds
             selections[match.id] = selection
@@ -250,7 +270,7 @@ class SimulationEngine:
                 }[selection]
 
                 if prob is None:
-                    return
+                    return False
 
                 combined_prob *= prob
 
@@ -262,7 +282,7 @@ class SimulationEngine:
         )
 
         if stake is None or stake <= 0 or stake > self.bankroll:
-            return
+            return False
 
         bet = Bet(
             matches=[match for match, _ in combo],
@@ -278,6 +298,8 @@ class SimulationEngine:
         for match, _ in combo:
             self.team_locks[match.home_team] = match.id
             self.team_locks[match.away_team] = match.id
+
+        return True
 
     def _final_settlement(self, matches):
         if not matches:
@@ -364,7 +386,6 @@ class SimulationEngine:
             "settled_at": b.settled_at.isoformat() if b.settled_at else None,
             "legs": legs,
             "meta": {
-                "strategy_type": self.request.strategy_type,
                 "rule_expression": getattr(self.request, "rule_expression", None),
                 "selection": getattr(self.request, "selection", None),
                 "staking_method": self.request.staking_method,

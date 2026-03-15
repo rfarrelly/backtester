@@ -30,8 +30,7 @@ def test_walk_forward_runs_multiple_segments():
     request = SimulationRequest(
         league="TestLeague",
         season="2025",
-        strategy_type="home",
-        selection=None,
+        selection="H",
         rule_expression=None,
         staking_method="fixed",
         fixed_stake=100,

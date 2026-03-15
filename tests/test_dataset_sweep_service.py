@@ -50,7 +50,6 @@ def _base_request():
         league="TestLeague",
         leagues=None,
         season="2425",
-        strategy_type="rules",
         selection="H",
         rule_expression=None,
         staking_method="fixed",

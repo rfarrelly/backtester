@@ -7,6 +7,8 @@ from app.domain.simulation.strategy import RuleStrategy
 
 
 class FakeMatch:
+    _counter = 0
+
     def __init__(
         self,
         *,
@@ -16,13 +18,18 @@ class FakeMatch:
         draw_odds: float = 3.5,
         away_win_odds: float = 4.0,
         features: dict | None = None,
+        home_team: str | None = None,
+        away_team: str | None = None,
     ):
         self.id = uuid.uuid4()
         self.league = "TestLeague"
         self.season = "2425"
         self.kickoff = kickoff
-        self.home_team = "Home"
-        self.away_team = "Away"
+
+        FakeMatch._counter += 1
+        suffix = FakeMatch._counter
+        self.home_team = home_team or f"Home{suffix}"
+        self.away_team = away_team or f"Away{suffix}"
         self.result = result
 
         if result == "H":

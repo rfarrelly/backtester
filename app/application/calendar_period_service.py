@@ -456,7 +456,6 @@ class CalendarPeriodService:
             "combined_prob": combined_prob,
             "settled_at": settled_at,
             "meta": {
-                "strategy_type": request.strategy_type,
                 "staking_method": request.staking_method,
                 "multiple_legs": request.multiple_legs,
                 "min_odds": request.min_odds,
@@ -585,12 +584,6 @@ class CalendarPeriodService:
         features = getattr(match, "features", None)
         if isinstance(features, dict) and rank_by in features:
             return self._to_float_or_none(features[rank_by])
-
-        if rank_by == "edge":
-            odds, model_prob = self._odds_and_model_prob(match, selection)
-            if odds and model_prob is not None:
-                return model_prob - (1 / odds)
-            return None
 
         return None
 
