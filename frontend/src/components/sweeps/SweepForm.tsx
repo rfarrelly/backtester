@@ -30,7 +30,6 @@ export default function SweepForm({
       "max_candidates_per_period",
       "rank_order",
       "fixed_stake",
-      "min_edge",
       "require_full_candidate_count",
       "rule_expression",
       ...availableFields.filter(
@@ -40,7 +39,6 @@ export default function SweepForm({
             "max_candidates_per_period",
             "rank_order",
             "fixed_stake",
-            "min_edge",
             "require_full_candidate_count",
             "rule_expression",
           ].includes(f)

@@ -35,6 +35,7 @@ export default function SimulationForm({
     onChange({
       ...value,
       [key]: fieldValue,
+      strategy_type: "rules",
     });
   }
 
@@ -48,6 +49,7 @@ export default function SimulationForm({
 
     onChange({
       ...value,
+      strategy_type: "rules",
       league: nextLeagues.length === 1 ? nextLeagues[0] : undefined,
       leagues: nextLeagues,
     });
@@ -57,6 +59,7 @@ export default function SimulationForm({
     if (mode === "none") {
       onChange({
         ...value,
+        strategy_type: "rules",
         period_mode: "none",
         custom_periods: undefined,
         reset_bankroll_each_period: false,
@@ -70,6 +73,7 @@ export default function SimulationForm({
 
     onChange({
       ...value,
+      strategy_type: "rules",
       period_mode: "custom_day_groups",
       custom_periods: value.custom_periods ?? WEEKEND_MIDWEEK_PRESET,
       rank_order: value.rank_order ?? "asc",
@@ -107,62 +111,23 @@ export default function SimulationForm({
         )}
 
         <label style={{ display: "grid", gap: 4 }}>
-          <span>Strategy type</span>
+          <span>Selection</span>
           <select
-            value={value.strategy_type}
+            value={value.selection ?? ""}
             onChange={(e) =>
               setField(
-                "strategy_type",
-                e.target.value as SimulationRequest["strategy_type"]
+                "selection",
+                (e.target.value || null) as "H" | "D" | "A" | null
               )
             }
             style={{ padding: 8 }}
           >
-            <option value="home">home</option>
-            <option value="edge">edge</option>
-            <option value="rules">rules</option>
+            <option value="">-- select --</option>
+            <option value="H">H</option>
+            <option value="D">D</option>
+            <option value="A">A</option>
           </select>
         </label>
-
-        {(value.strategy_type === "edge" ||
-          value.strategy_type === "rules") && (
-          <label style={{ display: "grid", gap: 4 }}>
-            <span>Selection</span>
-            <select
-              value={value.selection ?? ""}
-              onChange={(e) =>
-                setField(
-                  "selection",
-                  (e.target.value || null) as "H" | "D" | "A" | null
-                )
-              }
-              style={{ padding: 8 }}
-            >
-              <option value="">-- select --</option>
-              <option value="H">H</option>
-              <option value="D">D</option>
-              <option value="A">A</option>
-            </select>
-          </label>
-        )}
-
-        {value.strategy_type === "edge" && (
-          <label style={{ display: "grid", gap: 4 }}>
-            <span>Min edge</span>
-            <input
-              type="number"
-              step="0.01"
-              value={value.min_edge ?? ""}
-              onChange={(e) =>
-                setField(
-                  "min_edge",
-                  e.target.value === "" ? null : Number(e.target.value)
-                )
-              }
-              style={{ padding: 8 }}
-            />
-          </label>
-        )}
 
         <label style={{ display: "grid", gap: 4 }}>
           <span>Staking method</span>
@@ -325,6 +290,7 @@ export default function SimulationForm({
 
                 onChange({
                   ...value,
+                  strategy_type: "rules",
                   league: leagues.length === 1 ? leagues[0] : undefined,
                   leagues,
                 });

@@ -48,8 +48,9 @@ export type SimulationRequest = {
   league?: string | null;
   leagues?: string[] | null;
   season: string;
-  strategy_type: "home" | "edge" | "rules";
 
+  // kept temporarily for compatibility with current backend payloads
+  strategy_type?: "home" | "edge" | "rules";
   selection?: "H" | "D" | "A" | null;
   rule_expression?: string | null;
 
@@ -62,7 +63,6 @@ export type SimulationRequest = {
   multiple_legs: number;
 
   min_odds?: number | null;
-  min_edge?: number | null;
 
   walk_forward?: boolean;
   train_window_matches?: number | null;
@@ -113,12 +113,13 @@ export type BetLeg = {
   home_team: string;
   away_team: string;
   result: string;
-  selection: "H" | "D" | "A" | null;
-  odds: number | null;
-  implied_prob: number | null;
-  model_prob: number | null;
-  edge: number | null;
+  selection: string;
+  odds?: number | null;
+  implied_prob?: number | null;
+  model_prob?: number | null;
+  edge?: number | null;
   features?: Record<string, unknown>;
+  league?: string | null;
 };
 
 export type BetResult = {
@@ -127,26 +128,20 @@ export type BetResult = {
   is_win: boolean;
   profit: number;
   return_amount: number;
-  settled_at: string | null;
+  settled_at?: string | null;
   legs: BetLeg[];
   meta?: Record<string, unknown>;
 };
 
 export type WalkForwardSegment = {
   segment_index: number;
-  train_start_kickoff: string | null;
-  train_end_kickoff: string | null;
-  test_start_kickoff: string | null;
-  test_end_kickoff: string | null;
-  starting_bankroll: number;
-  final_bankroll: number;
+  train_start_kickoff?: string | null;
+  train_end_kickoff?: string | null;
+  test_start_kickoff?: string | null;
+  test_end_kickoff?: string | null;
   roi_percent: number;
   total_bets: number;
-  total_wins: number;
-  total_losses: number;
-  strike_rate_percent: number;
-  max_drawdown_percent: number;
-  profit_factor?: number | null;
+  final_bankroll: number;
 };
 
 export type SimulationResult = {
@@ -160,14 +155,16 @@ export type SimulationResult = {
   strike_rate_percent?: number;
   max_drawdown_percent?: number;
   profit_factor?: number | null;
-  average_odds?: number;
-  total_profit?: number;
+  average_odds?: number | null;
+  total_profit?: number | null;
   bets: BetResult[];
   equity_curve?: EquityPoint[];
   available_features?: string[];
+
   walk_forward?: boolean;
   total_segments?: number;
   segments?: WalkForwardSegment[];
+
   calendar_periods?: boolean;
   period_mode?: "none" | "custom_day_groups";
   total_periods?: number;

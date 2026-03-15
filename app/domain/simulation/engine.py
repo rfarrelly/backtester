@@ -171,7 +171,6 @@ class SimulationEngine:
                 "season": self.request.season,
                 "strategy_type": self.request.strategy_type,
                 "selection": self.request.selection,
-                "min_edge": self.request.min_edge,
                 "staking_method": self.request.staking_method,
                 "fixed_stake": self.request.fixed_stake,
                 "percent_stake": self.request.percent_stake,
@@ -371,7 +370,6 @@ class SimulationEngine:
                 "staking_method": self.request.staking_method,
                 "multiple_legs": self.request.multiple_legs,
                 "min_odds": self.request.min_odds,
-                "min_edge": self.request.min_edge,
             },
         }
 

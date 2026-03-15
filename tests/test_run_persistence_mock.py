@@ -71,7 +71,6 @@ def test_simulate_dataset_persists_run_record(tmp_path, db_session):
         starting_bankroll=1000,
         multiple_legs=1,
         min_odds=None,
-        min_edge=None,
     )
 
     fake_repo = FakeRunRepo()
@@ -141,7 +140,6 @@ def test_simulate_dataset_without_persist_does_not_create_run(tmp_path, db_sessi
         starting_bankroll=1000,
         multiple_legs=1,
         min_odds=None,
-        min_edge=None,
     )
 
     fake_repo = FakeRunRepo()

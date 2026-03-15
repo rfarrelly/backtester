@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { deleteRun, downloadRunBetsCsv, getRun } from "../api/runs";
 import type { RunDetail } from "../types/api";
@@ -76,6 +76,7 @@ export default function RunDetailPage() {
       mapping: run.mapping,
       request: {
         ...run.request,
+        strategy_type: "rules",
       },
       persist: true,
     });
@@ -171,7 +172,6 @@ export default function RunDetailPage() {
             }
           />
           <InfoCard label="Season" value={run.request.season} />
-          <InfoCard label="Strategy" value={run.request.strategy_type} />
           <InfoCard label="Selection" value={run.request.selection ?? "-"} />
           <InfoCard label="Rule" value={run.request.rule_expression ?? "-"} />
           <InfoCard label="Staking" value={run.request.staking_method} />
@@ -185,10 +185,6 @@ export default function RunDetailPage() {
             value={run.request.min_odds != null ? String(run.request.min_odds) : "-"}
           />
           <InfoCard
-            label="Min edge"
-            value={run.request.min_edge != null ? String(run.request.min_edge) : "-"}
-          />
-          <InfoCard
             label="Walk-forward"
             value={run.request.walk_forward ? "Yes" : "No"}
           />
@@ -196,10 +192,7 @@ export default function RunDetailPage() {
             label="Period mode"
             value={run.request.period_mode ?? "none"}
           />
-          <InfoCard
-            label="Rank by"
-            value={run.request.rank_by ?? "-"}
-          />
+          <InfoCard label="Rank by" value={run.request.rank_by ?? "-"} />
           <InfoCard
             label="Max candidates / period"
             value={
@@ -272,7 +265,7 @@ function InfoCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-const summaryGridStyle: React.CSSProperties = {
+const summaryGridStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
   gap: 12,

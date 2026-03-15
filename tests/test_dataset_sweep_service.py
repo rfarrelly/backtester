@@ -60,7 +60,6 @@ def _base_request():
         starting_bankroll=1000,
         multiple_legs=1,
         min_odds=None,
-        min_edge=None,
         walk_forward=False,
         train_window_matches=None,
         test_window_matches=None,

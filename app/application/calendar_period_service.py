@@ -460,7 +460,6 @@ class CalendarPeriodService:
                 "staking_method": request.staking_method,
                 "multiple_legs": request.multiple_legs,
                 "min_odds": request.min_odds,
-                "min_edge": request.min_edge,
                 "period_index": period_index,
                 "period_label": period_label,
             },

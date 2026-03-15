@@ -40,7 +40,6 @@ def test_walk_forward_runs_multiple_segments():
         starting_bankroll=1000,
         multiple_legs=1,
         min_odds=None,
-        min_edge=None,
         walk_forward=True,
         train_window_matches=10,
         test_window_matches=5,

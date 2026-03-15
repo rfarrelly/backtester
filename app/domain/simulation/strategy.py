@@ -12,12 +12,25 @@ class BaseStrategy:
         raise NotImplementedError
 
 
+# ---------------------------------------------------------
+# Deprecated legacy strategies (kept temporarily)
+# ---------------------------------------------------------
+# These existed before the rule-based system became the
+# primary strategy mechanism. They remain only for backward
+# compatibility with older runs/tests and will be removed
+# in a future cleanup.
+
+
 class AlwaysHomeStrategy(BaseStrategy):
+    """Deprecated: replaced by RuleStrategy(selection='H')."""
+
     def evaluate(self, match, context=None):
         return StrategyDecision(place_bet=True, selection="H")
 
 
 class EdgeStrategy(BaseStrategy):
+    """Deprecated: replaced by rule expressions."""
+
     def __init__(self, selection: str, min_edge: float = 0.0):
         self.selection = selection
         self.min_edge = min_edge
@@ -53,14 +66,29 @@ class EdgeStrategy(BaseStrategy):
         return StrategyDecision(False)
 
 
+# ---------------------------------------------------------
+# Primary strategy implementation
+# ---------------------------------------------------------
+
+
 class RuleStrategy(BaseStrategy):
+    """
+    Main strategy used by the simulator.
+
+    Behaviour:
+
+    - If rule_expression is None → all matches eligible
+    - If rule_expression exists → only matches where rule evaluates True
+    - selection determines which outcome is bet (H/D/A)
+    """
+
     def __init__(self, rule_expression: str | None, selection: str):
         self.rule_expression = rule_expression
         self.selection = selection
 
-        # Allow ranking-only usage: no rule means "all matches eligible"
+        # No rule means "all matches eligible"
         if rule_expression and rule_expression.strip():
-            self._compiled = compile_rule(rule_expression)  # may raise RuleCompileError
+            self._compiled = compile_rule(rule_expression)
         else:
             self._compiled = None
 
@@ -74,11 +102,10 @@ class RuleStrategy(BaseStrategy):
         if self.selection not in ("H", "D", "A"):
             return StrategyDecision(False)
 
-        # No rule expression => all matches eligible
+        # No rule expression → allow all matches
         if self._compiled is None:
             return StrategyDecision(True, self.selection)
 
-        # Base variables (always available)
         vars_dict = {
             "home_team": match.home_team,
             "away_team": match.away_team,
@@ -96,14 +123,12 @@ class RuleStrategy(BaseStrategy):
         if context is not None and hasattr(context, "features_for_match"):
             vars_dict.update(context.features_for_match(match))
 
-        # Uploaded features
+        # Uploaded dataset features
         vars_dict.update(getattr(match, "features", {}) or {})
 
         try:
             ok = self._compiled.func(vars_dict)
-        except NameError:
-            return StrategyDecision(False)
-        except TypeError:
+        except (NameError, TypeError):
             return StrategyDecision(False)
         except Exception:
             return StrategyDecision(False)

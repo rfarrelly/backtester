@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useParams } from "react-router-dom";
 import {
   getDistinctValues,
   introspectDataset,
   simulateDataset,
 } from "../api/datasets";
+import { runDatasetSweep } from "../api/sweeps";
 import {
   clearSimulationDraft,
   loadSimulationDraft,
@@ -13,6 +14,7 @@ import {
 import type {
   DatasetIntrospection,
   DatasetMapping,
+  DatasetSweepResponse,
   SimulationRequest,
   SimulationResult,
 } from "../types/api";
@@ -20,8 +22,6 @@ import MappingForm from "../components/mapping/MappingForm";
 import RuleEditor from "../components/rules/RuleEditor";
 import SimulationForm from "../components/simulation/SimulationForm";
 import SimulationResultView from "../components/results/SimulationResultView";
-import { runDatasetSweep } from "../api/sweeps";
-import type { DatasetSweepResponse } from "../types/api";
 import SweepForm from "../components/sweeps/SweepForm";
 import SweepResultsView from "../components/sweeps/SweepResultsView";
 
@@ -53,7 +53,7 @@ function buildInitialSimulationRequest(): SimulationRequest {
     league: null,
     leagues: [],
     season: "",
-    strategy_type: "home",
+    strategy_type: "rules",
     selection: null,
     rule_expression: null,
     staking_method: "fixed",
@@ -63,7 +63,6 @@ function buildInitialSimulationRequest(): SimulationRequest {
     starting_bankroll: 1000,
     multiple_legs: 1,
     min_odds: null,
-    min_edge: null,
     walk_forward: false,
     train_window_matches: null,
     test_window_matches: null,
@@ -75,6 +74,13 @@ function buildInitialSimulationRequest(): SimulationRequest {
     rank_by: null,
     rank_order: "asc",
     require_full_candidate_count: false,
+  };
+}
+
+function normalizeRequest(request: SimulationRequest): SimulationRequest {
+  return {
+    ...request,
+    strategy_type: "rules",
   };
 }
 
@@ -93,8 +99,13 @@ export default function DatasetDetailPage() {
 
   const [loading, setLoading] = useState(true);
   const [simulating, setSimulating] = useState(false);
+  const [sweeping, setSweeping] = useState(false);
+  const [sweepPersistRuns, setSweepPersistRuns] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SimulationResult | null>(null);
+  const [sweepResult, setSweepResult] = useState<DatasetSweepResponse | null>(
+    null
+  );
 
   const [loadedDraftInfo, setLoadedDraftInfo] = useState<{
     sourceRunId?: string | null;
@@ -102,10 +113,6 @@ export default function DatasetDetailPage() {
   } | null>(null);
 
   const hasHydratedRef = useRef(false);
-
-  const [sweeping, setSweeping] = useState(false);
-  const [sweepPersistRuns, setSweepPersistRuns] = useState(true);
-  const [sweepResult, setSweepResult] = useState<DatasetSweepResponse | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -132,7 +139,7 @@ export default function DatasetDetailPage() {
 
         if (draft) {
           setMapping(draft.mapping);
-          setRequest(draft.request);
+          setRequest(normalizeRequest(draft.request));
           setPersist(draft.persist ?? true);
           setLoadedDraftInfo({
             sourceRunId: draft.sourceRunId ?? null,
@@ -195,10 +202,12 @@ export default function DatasetDetailPage() {
         setSeasonOptions(res.values);
 
         if (res.values.length === 1) {
-          setRequest((prev) => ({
-            ...prev,
-            season: prev.season || res.values[0],
-          }));
+          setRequest((prev) =>
+            normalizeRequest({
+              ...prev,
+              season: prev.season || res.values[0],
+            })
+          );
         }
       } catch (err) {
         console.error("Failed to load season options", err);
@@ -215,7 +224,7 @@ export default function DatasetDetailPage() {
     saveSimulationDraft(datasetId, {
       sourceRunId: loadedDraftInfo?.sourceRunId ?? null,
       mapping,
-      request,
+      request: normalizeRequest(request),
       persist,
     });
   }, [datasetId, mapping, request, persist, loadedDraftInfo]);
@@ -249,11 +258,18 @@ export default function DatasetDetailPage() {
 
   const rankFieldOptions = useMemo(() => {
     const builtins = ["edge"];
-    return Array.from(new Set([...(mapping.feature_cols ?? []), ...builtins])).sort();
+    return Array.from(
+      new Set([...(mapping.feature_cols ?? []), ...builtins])
+    ).sort();
   }, [mapping.feature_cols]);
 
   async function handleSimulate() {
     if (!datasetId) return;
+
+    if (!request.selection) {
+      setError("Selection is required.");
+      return;
+    }
 
     setSimulating(true);
     setError(null);
@@ -262,7 +278,7 @@ export default function DatasetDetailPage() {
     try {
       const res = await simulateDataset(datasetId, {
         mapping,
-        request,
+        request: normalizeRequest(request),
         persist,
       });
       setResult(res);
@@ -279,6 +295,11 @@ export default function DatasetDetailPage() {
   ) {
     if (!datasetId) return;
 
+    if (!request.selection) {
+      setError("Selection is required.");
+      return;
+    }
+
     setSweeping(true);
     setError(null);
     setSweepResult(null);
@@ -286,7 +307,7 @@ export default function DatasetDetailPage() {
     try {
       const res = await runDatasetSweep(datasetId, {
         mapping,
-        base_request: request,
+        base_request: normalizeRequest(request),
         grid,
         persist_runs: persistRuns,
       });
@@ -307,6 +328,7 @@ export default function DatasetDetailPage() {
     setRequest(buildInitialSimulationRequest());
     setPersist(true);
     setResult(null);
+    setSweepResult(null);
   }
 
   if (!datasetId) {
@@ -450,7 +472,7 @@ export default function DatasetDetailPage() {
       <SectionPanel title="Simulation setup">
         <SimulationForm
           value={request}
-          onChange={setRequest}
+          onChange={(next) => setRequest(normalizeRequest(next))}
           onSubmit={handleSimulate}
           submitting={simulating}
           persist={persist}
@@ -475,20 +497,20 @@ export default function DatasetDetailPage() {
         <SweepResultsView result={sweepResult} />
       </SectionPanel>
 
-      {request.strategy_type === "rules" && (
-        <SectionPanel title="Rule validation">
-          <RuleEditor
-            expression={request.rule_expression ?? ""}
-            onChange={(value) =>
-              setRequest((prev) => ({
+      <SectionPanel title="Rule builder">
+        <RuleEditor
+          expression={request.rule_expression ?? ""}
+          onChange={(value) =>
+            setRequest((prev) =>
+              normalizeRequest({
                 ...prev,
                 rule_expression: value,
-              }))
-            }
-            availableNames={availableNames}
-          />
-        </SectionPanel>
-      )}
+              })
+            )
+          }
+          availableNames={availableNames}
+        />
+      </SectionPanel>
 
       <SectionPanel title="Results">
         <SimulationResultView result={result} />
@@ -502,7 +524,7 @@ function SectionPanel({
   children,
 }: {
   title: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <section
@@ -519,14 +541,14 @@ function SectionPanel({
   );
 }
 
-const thStyle: React.CSSProperties = {
+const thStyle: CSSProperties = {
   textAlign: "left",
   borderBottom: "1px solid #ddd",
   padding: "8px 12px",
   whiteSpace: "nowrap",
 };
 
-const tdStyle: React.CSSProperties = {
+const tdStyle: CSSProperties = {
   borderBottom: "1px solid #eee",
   padding: "8px 12px",
   whiteSpace: "nowrap",

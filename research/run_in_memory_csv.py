@@ -45,7 +45,6 @@ def main():
         starting_bankroll=1000,
         multiple_legs=1,
         min_odds=None,
-        min_edge=None,
     )
 
     matches = load_matches_from_csv(
