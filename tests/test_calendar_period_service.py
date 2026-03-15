@@ -2,135 +2,11 @@ import math
 import uuid
 from datetime import datetime, timedelta
 
+import pytest
+from pydantic import ValidationError
+
 from app.application.calendar_period_service import CalendarPeriodService
 from app.domain.simulation.models import SimulationRequest
-
-
-class FakeMatch:
-    def __init__(
-        self,
-        idx: int,
-        kickoff: datetime,
-        result: str = "H",
-        ppi_diff: float | None = None,
-    ):
-        self.id = uuid.uuid4()
-        self.league = "TestLeague"
-        self.season = "2425"
-        self.kickoff = kickoff
-        self.home_team = f"H{idx}"
-        self.away_team = f"A{idx}"
-        self.home_goals = 1
-        self.away_goals = 0
-        self.result = result
-
-        self.home_win_odds = 2.0
-        self.draw_odds = 3.5
-        self.away_win_odds = 4.0
-
-        self.model_home_prob = None
-        self.model_draw_prob = None
-        self.model_away_prob = None
-
-        self.features = {}
-        if ppi_diff is not None:
-            self.features["PPIDiff"] = ppi_diff
-
-
-def test_calendar_periods_top_4_smallest_ppidiff_without_rule():
-    # Fri, Sat, Sun, Mon, Tue, Wed
-    base = datetime(2025, 1, 3, 15, 0)  # Friday
-
-    matches = [
-        FakeMatch(1, base + timedelta(days=0), result="H", ppi_diff=0.08),  # Fri
-        FakeMatch(2, base + timedelta(days=1), result="H", ppi_diff=0.03),  # Sat
-        FakeMatch(3, base + timedelta(days=2), result="H", ppi_diff=0.01),  # Sun
-        FakeMatch(4, base + timedelta(days=3), result="H", ppi_diff=0.06),  # Mon
-        FakeMatch(5, base + timedelta(days=4), result="H", ppi_diff=0.02),  # Tue
-        FakeMatch(6, base + timedelta(days=5), result="H", ppi_diff=0.09),  # Wed
-    ]
-
-    request = SimulationRequest(
-        league="TestLeague",
-        leagues=None,
-        season="2425",
-        selection="H",
-        rule_expression=None,
-        staking_method="fixed",
-        fixed_stake=100,
-        percent_stake=None,
-        kelly_fraction=None,
-        starting_bankroll=1000,
-        multiple_legs=1,
-        min_odds=None,
-        walk_forward=False,
-        train_window_matches=None,
-        test_window_matches=None,
-        step_matches=None,
-        period_mode="custom_day_groups",
-        custom_periods={
-            "weekend": [4, 5, 6, 0],
-            "midweek": [1, 2, 3],
-        },
-        reset_bankroll_each_period=False,
-        max_candidates_per_period=4,
-        rank_by="PPIDiff",
-        rank_order="asc",
-        require_full_candidate_count=False,
-    )
-
-    result = CalendarPeriodService().run(matches, request)
-
-    assert result["calendar_periods"] is True
-    assert result["total_periods"] == 2
-    # weekend has 4 candidates, midweek has 2 candidates; all are H winners
-    assert result["total_bets"] == 6
-    assert result["final_bankroll"] > 1000
-
-
-def test_calendar_periods_require_full_candidate_count_skips_small_period():
-    base = datetime(2025, 1, 3, 15, 0)  # Friday
-
-    matches = [
-        FakeMatch(1, base + timedelta(days=0), result="H", ppi_diff=0.08),  # Fri
-        FakeMatch(2, base + timedelta(days=1), result="H", ppi_diff=0.03),  # Sat
-        FakeMatch(3, base + timedelta(days=4), result="H", ppi_diff=0.02),  # Tue
-    ]
-
-    request = SimulationRequest(
-        league="TestLeague",
-        leagues=None,
-        season="2425",
-        selection="H",
-        rule_expression=None,
-        staking_method="fixed",
-        fixed_stake=100,
-        percent_stake=None,
-        kelly_fraction=None,
-        starting_bankroll=1000,
-        multiple_legs=1,
-        min_odds=None,
-        walk_forward=False,
-        train_window_matches=None,
-        test_window_matches=None,
-        step_matches=None,
-        period_mode="custom_day_groups",
-        custom_periods={
-            "weekend": [4, 5, 6, 0],
-            "midweek": [1, 2, 3],
-        },
-        reset_bankroll_each_period=False,
-        max_candidates_per_period=4,
-        rank_by="PPIDiff",
-        rank_order="asc",
-        require_full_candidate_count=True,
-    )
-
-    result = CalendarPeriodService().run(matches, request)
-
-    # Neither weekend (2) nor midweek (1) has 4 candidates, so no bets.
-    assert result["total_bets"] == 0
-    assert result["final_bankroll"] == 1000
 
 
 class FakeMatch:
@@ -176,6 +52,15 @@ class FakeMatch:
             self.features["PPIDiff"] = ppi_diff
 
 
+def make_custom_periods(*periods):
+    if periods:
+        return list(periods)
+    return [
+        {"name": "Weekend", "start_day": "fri", "end_day": "mon"},
+        {"name": "Midweek", "start_day": "tue", "end_day": "thu"},
+    ]
+
+
 def make_request(**overrides) -> SimulationRequest:
     base = dict(
         league="TestLeague",
@@ -194,11 +79,8 @@ def make_request(**overrides) -> SimulationRequest:
         train_window_matches=None,
         test_window_matches=None,
         step_matches=None,
-        period_mode="custom_day_groups",
-        custom_periods={
-            "weekend": [4, 5, 6, 0],  # Fri, Sat, Sun, Mon
-            "midweek": [1, 2, 3],  # Tue, Wed, Thu
-        },
+        period_mode="custom",
+        custom_periods=make_custom_periods(),
         reset_bankroll_each_period=False,
         max_candidates_per_period=None,
         rank_by=None,
@@ -215,6 +97,104 @@ def _collect_leg_match_ids(result: dict) -> set[str]:
         for leg in bet["legs"]:
             ids.add(leg["match_id"])
     return ids
+
+
+def test_calendar_periods_top_4_smallest_ppidiff_without_rule():
+    base = datetime(2025, 1, 3, 15, 0)  # Friday
+
+    matches = [
+        FakeMatch(1, base + timedelta(days=0), result="H", ppi_diff=0.08),  # Fri
+        FakeMatch(2, base + timedelta(days=1), result="H", ppi_diff=0.03),  # Sat
+        FakeMatch(3, base + timedelta(days=2), result="H", ppi_diff=0.01),  # Sun
+        FakeMatch(4, base + timedelta(days=3), result="H", ppi_diff=0.06),  # Mon
+        FakeMatch(5, base + timedelta(days=4), result="H", ppi_diff=0.02),  # Tue
+        FakeMatch(6, base + timedelta(days=5), result="H", ppi_diff=0.09),  # Wed
+    ]
+
+    request = make_request(
+        max_candidates_per_period=4,
+        rank_by="PPIDiff",
+        rank_order="asc",
+    )
+
+    result = CalendarPeriodService().run(matches, request)
+
+    assert result["calendar_periods"] is True
+    assert result["total_periods"] == 2
+    assert [p["period_label"] for p in result["periods"]] == ["Weekend", "Midweek"]
+    # weekend has 4 candidates, midweek has 2 candidates; all are H winners
+    assert result["total_bets"] == 6
+    assert result["final_bankroll"] > 1000
+
+
+def test_calendar_periods_require_full_candidate_count_skips_small_period():
+    base = datetime(2025, 1, 3, 15, 0)  # Friday
+
+    matches = [
+        FakeMatch(1, base + timedelta(days=0), result="H", ppi_diff=0.08),  # Fri
+        FakeMatch(2, base + timedelta(days=1), result="H", ppi_diff=0.03),  # Sat
+        FakeMatch(3, base + timedelta(days=4), result="H", ppi_diff=0.02),  # Tue
+    ]
+
+    request = make_request(
+        max_candidates_per_period=4,
+        rank_by="PPIDiff",
+        rank_order="asc",
+        require_full_candidate_count=True,
+    )
+
+    result = CalendarPeriodService().run(matches, request)
+
+    # Neither weekend (2) nor midweek (1) has 4 candidates, so no bets.
+    assert result["total_bets"] == 0
+    assert result["final_bankroll"] == 1000
+
+
+def test_custom_period_fri_to_mon_groups_correctly():
+    base = datetime(2025, 1, 3, 15, 0)  # Friday
+
+    matches = [
+        FakeMatch(1, base + timedelta(days=0), ppi_diff=0.04),  # Fri
+        FakeMatch(2, base + timedelta(days=1), ppi_diff=0.03),  # Sat
+        FakeMatch(3, base + timedelta(days=2), ppi_diff=0.02),  # Sun
+        FakeMatch(4, base + timedelta(days=3), ppi_diff=0.01),  # Mon
+    ]
+
+    request = make_request(
+        custom_periods=make_custom_periods(
+            {"name": "Weekend", "start_day": "fri", "end_day": "mon"}
+        )
+    )
+
+    result = CalendarPeriodService().run(matches, request)
+
+    assert result["total_periods"] == 1
+    assert result["periods"][0]["period_label"] == "Weekend"
+    assert result["periods"][0]["matches_in_period"] == 4
+    assert result["total_bets"] == 4
+
+
+def test_custom_period_tue_to_thu_groups_correctly():
+    base = datetime(2025, 1, 7, 15, 0)  # Tuesday
+
+    matches = [
+        FakeMatch(1, base + timedelta(days=0), ppi_diff=0.04),  # Tue
+        FakeMatch(2, base + timedelta(days=1), ppi_diff=0.03),  # Wed
+        FakeMatch(3, base + timedelta(days=2), ppi_diff=0.02),  # Thu
+    ]
+
+    request = make_request(
+        custom_periods=make_custom_periods(
+            {"name": "Midweek", "start_day": "tue", "end_day": "thu"}
+        )
+    )
+
+    result = CalendarPeriodService().run(matches, request)
+
+    assert result["total_periods"] == 1
+    assert result["periods"][0]["period_label"] == "Midweek"
+    assert result["periods"][0]["matches_in_period"] == 3
+    assert result["total_bets"] == 3
 
 
 def test_calendar_groups_into_chronological_weekend_midweek_blocks():
@@ -235,16 +215,15 @@ def test_calendar_groups_into_chronological_weekend_midweek_blocks():
     assert result["calendar_periods"] is True
     assert result["total_periods"] == 3
     assert [p["period_label"] for p in result["periods"]] == [
-        "weekend",
-        "midweek",
-        "weekend",
+        "Weekend",
+        "Midweek",
+        "Weekend",
     ]
 
 
 def test_calendar_ranking_only_singles_selects_smallest_ppidiff_per_period():
     base = datetime(2025, 1, 3, 15, 0)  # Friday
 
-    # Weekend period: Fri/Sat/Sun/Mon
     weekend_matches = [
         FakeMatch(1, base + timedelta(days=0), result="H", ppi_diff=0.08),
         FakeMatch(2, base + timedelta(days=1), result="H", ppi_diff=0.03),
@@ -252,7 +231,6 @@ def test_calendar_ranking_only_singles_selects_smallest_ppidiff_per_period():
         FakeMatch(4, base + timedelta(days=3), result="H", ppi_diff=0.06),
     ]
 
-    # Midweek period: Tue/Wed
     midweek_matches = [
         FakeMatch(5, base + timedelta(days=4), result="H", ppi_diff=0.04),
         FakeMatch(6, base + timedelta(days=5), result="H", ppi_diff=0.02),
@@ -345,7 +323,6 @@ def test_calendar_multiple_legs_four_preserves_exact_selected_candidates():
         ),
     ]
 
-    # Worse-ranked extras in the same period should not be selected
     extras = [
         FakeMatch(
             5,
@@ -389,15 +366,9 @@ def test_calendar_multiple_legs_four_preserves_exact_selected_candidates():
 def test_calendar_bankroll_carry_forward_vs_reset_per_period():
     base = datetime(2025, 1, 3, 15, 0)  # Friday
 
-    # Weekend: one winning H single
-    # Midweek: one losing H single
     matches = [
-        FakeMatch(
-            1, base + timedelta(days=0), result="H", ppi_diff=0.01
-        ),  # weekend win
-        FakeMatch(
-            2, base + timedelta(days=4), result="A", ppi_diff=0.01
-        ),  # midweek loss
+        FakeMatch(1, base + timedelta(days=0), result="H", ppi_diff=0.01),
+        FakeMatch(2, base + timedelta(days=4), result="A", ppi_diff=0.01),
     ]
 
     request_carry = make_request(
@@ -434,9 +405,6 @@ def test_calendar_bankroll_carry_forward_vs_reset_per_period():
     assert result_reset["periods"][0]["final_bankroll"] == 1100
     assert result_reset["periods"][1]["starting_bankroll"] == 1000
     assert result_reset["periods"][1]["final_bankroll"] == 900
-
-    # Aggregate final bankroll in reset mode = starting bankroll + total profit across periods
-    # +100 on period 1, -100 on period 2 => back to 1000
     assert result_reset["final_bankroll"] == 1000
 
 
@@ -496,3 +464,23 @@ def test_calendar_profit_factor_is_none_when_no_losses_and_result_is_json_safe()
                 assert_no_nonfinite(v)
 
     assert_no_nonfinite(result)
+
+
+def test_overlapping_custom_periods_raise_validation_error():
+    with pytest.raises(ValidationError, match="overlap|Overlapping|overlapping"):
+        make_request(
+            custom_periods=make_custom_periods(
+                {"name": "Weekend", "start_day": "fri", "end_day": "mon"},
+                {"name": "EarlyWeek", "start_day": "sun", "end_day": "tue"},
+            )
+        )
+
+
+def test_duplicate_custom_period_names_raise_validation_error():
+    with pytest.raises(ValidationError, match="unique|duplicate|Duplicate"):
+        make_request(
+            custom_periods=make_custom_periods(
+                {"name": "Weekend", "start_day": "fri", "end_day": "mon"},
+                {"name": "Weekend", "start_day": "tue", "end_day": "thu"},
+            )
+        )

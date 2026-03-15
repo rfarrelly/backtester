@@ -204,7 +204,7 @@ class DatasetService:
         if request.period_mode == "none":
             return
 
-        if request.period_mode == "custom_day_groups":
+        if request.period_mode == "custom":
             if not request.custom_periods:
                 raise ValueError(
                     "custom_periods is required when period_mode='custom_day_groups'"

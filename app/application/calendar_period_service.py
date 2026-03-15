@@ -2,11 +2,22 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Any
+from datetime import datetime, timedelta
+from typing import Any, OrderedDict
 
 from app.application.strategy_factory import build_strategy
 from app.domain.simulation.context import RollingContext
+from app.domain.simulation.models import CustomPeriodDefinition
+
+DAY_TO_INDEX = {
+    "mon": 0,
+    "tue": 1,
+    "wed": 2,
+    "thu": 3,
+    "fri": 4,
+    "sat": 5,
+    "sun": 6,
+}
 
 
 @dataclass
@@ -68,18 +79,6 @@ class CalendarPeriodService:
 
             candidates = self._build_candidates_for_period(bucket.matches, request)
             selected = self._rank_and_select_candidates(candidates, request)
-
-            # Debug output kept intentionally because it is useful here
-            print("SELECTION PERIOD CANDIDATES")
-            for c in selected:
-                print(
-                    bucket.period_label,
-                    c.match.kickoff,
-                    c.match.league,
-                    c.selection,
-                    c.match.home_team,
-                    c.match.away_team,
-                )
 
             period_bets = self._build_period_bets(
                 selected_candidates=selected,
@@ -207,103 +206,75 @@ class CalendarPeriodService:
         }
 
     def _validate_request(self, request):
-        if request.period_mode != "custom_day_groups":
+        if request.period_mode != "custom":
             raise ValueError("Unsupported period_mode for CalendarPeriodService")
 
         if not request.custom_periods:
-            raise ValueError(
-                "custom_periods is required when period_mode='custom_day_groups'"
-            )
+            raise ValueError("custom_periods is required when period_mode='custom'")
 
-        seen_days = set()
-        for label, days in request.custom_periods.items():
-            if not days:
-                raise ValueError(f"custom_periods['{label}'] cannot be empty")
+        names = [period.name.strip().lower() for period in request.custom_periods]
+        if len(names) != len(set(names)):
+            raise ValueError("custom period names must be unique")
 
-            for day in days:
-                if day < 0 or day > 6:
-                    raise ValueError("Weekday values must be between 0 and 6")
-                if day in seen_days:
+        covered_days_by_name = []
+        for period in request.custom_periods:
+            start_idx = DAY_TO_INDEX[period.start_day]
+            end_idx = DAY_TO_INDEX[period.end_day]
+
+            if start_idx <= end_idx:
+                covered = set(range(start_idx, end_idx + 1))
+            else:
+                covered = set(range(start_idx, 7)) | set(range(0, end_idx + 1))
+
+            covered_days_by_name.append((period.name, covered))
+
+        for i in range(len(covered_days_by_name)):
+            name_a, days_a = covered_days_by_name[i]
+            for j in range(i + 1, len(covered_days_by_name)):
+                name_b, days_b = covered_days_by_name[j]
+                if days_a & days_b:
                     raise ValueError(
-                        "A weekday cannot belong to more than one custom period"
+                        f"overlapping custom periods are not allowed: {name_a} and {name_b}"
                     )
-                seen_days.add(day)
 
-        if request.max_candidates_per_period is not None:
-            if request.max_candidates_per_period <= 0:
-                raise ValueError("max_candidates_per_period must be positive")
-            if not request.rank_by:
-                raise ValueError(
-                    "rank_by is required when max_candidates_per_period is set"
-                )
-
-        if request.multiple_legs <= 0:
-            raise ValueError("multiple_legs must be positive")
-
-    def _build_periods(
-        self, matches, custom_periods: dict[str, list[int]]
-    ) -> list[PeriodBucket]:
-        weekday_to_label = {}
-        for label, weekdays in custom_periods.items():
-            for weekday in weekdays:
-                weekday_to_label[weekday] = label
-
+    def _build_periods(self, matches, custom_periods):
         sorted_matches = sorted(matches, key=lambda m: m.kickoff)
-
-        buckets: list[PeriodBucket] = []
-        current_label = None
-        current_matches = []
-        period_index = 0
+        buckets_by_key = OrderedDict()
 
         for match in sorted_matches:
-            weekday = match.kickoff.weekday()
-            label = weekday_to_label.get(weekday)
-
-            if label is None:
-                if current_matches:
-                    buckets.append(
-                        PeriodBucket(
-                            period_index=period_index,
-                            period_label=current_label,
-                            start_kickoff=current_matches[0].kickoff,
-                            end_kickoff=current_matches[-1].kickoff,
-                            matches=current_matches,
-                        )
-                    )
-                    period_index += 1
-                    current_matches = []
-                    current_label = None
+            definition = self._match_custom_period(match.kickoff, custom_periods)
+            if definition is None:
                 continue
 
-            if current_label is None:
-                current_label = label
-                current_matches = [match]
+            start_idx = DAY_TO_INDEX[definition.start_day]
+            end_idx = DAY_TO_INDEX[definition.end_day]
+            period_start_date = self._resolve_period_start_date(
+                match.kickoff, start_idx, end_idx
+            )
+
+            if period_start_date is None:
                 continue
 
-            if label == current_label:
-                current_matches.append(match)
-            else:
-                buckets.append(
-                    PeriodBucket(
-                        period_index=period_index,
-                        period_label=current_label,
-                        start_kickoff=current_matches[0].kickoff,
-                        end_kickoff=current_matches[-1].kickoff,
-                        matches=current_matches,
-                    )
-                )
-                period_index += 1
-                current_label = label
-                current_matches = [match]
+            bucket_key = f"{definition.name}|{period_start_date.isoformat()}"
 
-        if current_matches:
+            if bucket_key not in buckets_by_key:
+                buckets_by_key[bucket_key] = {
+                    "period_label": definition.name,
+                    "matches": [],
+                }
+
+            buckets_by_key[bucket_key]["matches"].append(match)
+
+        buckets = []
+        for idx, (_, bucket) in enumerate(buckets_by_key.items()):
+            bucket_matches = bucket["matches"]
             buckets.append(
                 PeriodBucket(
-                    period_index=period_index,
-                    period_label=current_label,
-                    start_kickoff=current_matches[0].kickoff,
-                    end_kickoff=current_matches[-1].kickoff,
-                    matches=current_matches,
+                    period_index=idx,
+                    period_label=bucket["period_label"],
+                    start_kickoff=bucket_matches[0].kickoff,
+                    end_kickoff=bucket_matches[-1].kickoff,
+                    matches=bucket_matches,
                 )
             )
 
@@ -610,3 +581,39 @@ class CalendarPeriodService:
             return value
         except (TypeError, ValueError):
             return None
+
+    def _weekday_in_range(self, weekday: int, start_day: int, end_day: int) -> bool:
+        if start_day <= end_day:
+            return start_day <= weekday <= end_day
+        return weekday >= start_day or weekday <= end_day
+
+    def _resolve_period_start_date(
+        self, kickoff: datetime, start_day: int, end_day: int
+    ):
+        weekday = kickoff.weekday()
+
+        if not self._weekday_in_range(weekday, start_day, end_day):
+            return None
+
+        days_since_start = (weekday - start_day) % 7
+        return kickoff.date() - timedelta(days=days_since_start)
+
+    def _match_custom_period(self, kickoff: datetime, custom_periods):
+        weekday = kickoff.weekday()
+
+        matches = []
+        for definition in custom_periods:
+            start_idx = DAY_TO_INDEX[definition.start_day]
+            end_idx = DAY_TO_INDEX[definition.end_day]
+
+            if self._weekday_in_range(weekday, start_idx, end_idx):
+                matches.append(definition)
+
+        if not matches:
+            return None
+
+        if len(matches) > 1:
+            labels = ", ".join(p.name for p in matches)
+            raise ValueError(f"overlapping custom periods are not allowed: {labels}")
+
+        return matches[0]

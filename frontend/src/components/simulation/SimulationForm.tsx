@@ -55,7 +55,7 @@ export default function SimulationForm({
     });
   }
 
-  function handlePeriodModeChange(mode: "none" | "custom_day_groups") {
+  function handlePeriodModeChange(mode: "none" | "custom") {
     if (mode === "none") {
       onChange({
         ...value,
@@ -371,7 +371,7 @@ export default function SimulationForm({
             value={value.period_mode ?? "none"}
             onChange={(e) =>
               handlePeriodModeChange(
-                e.target.value as "none" | "custom_day_groups"
+                e.target.value as "none" | "custom"
               )
             }
             style={{ padding: 8, maxWidth: 320 }}

@@ -2,6 +2,38 @@ from typing import Literal
 
 from pydantic import BaseModel, model_validator
 
+DAY_TO_INDEX = {
+    "mon": 0,
+    "tue": 1,
+    "wed": 2,
+    "thu": 3,
+    "fri": 4,
+    "sat": 5,
+    "sun": 6,
+}
+
+
+def _covered_days(start_day: str, end_day: str) -> set[int]:
+    start = DAY_TO_INDEX[start_day]
+    end = DAY_TO_INDEX[end_day]
+
+    if start <= end:
+        return set(range(start, end + 1))
+
+    return set(range(start, 7)) | set(range(0, end + 1))
+
+
+class CustomPeriodDefinition(BaseModel):
+    name: str
+    start_day: Literal["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+    end_day: Literal["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+    @model_validator(mode="after")
+    def validate_period(self):
+        if not self.name or not self.name.strip():
+            raise ValueError("custom period name is required")
+        return self
+
 
 class SimulationRequest(BaseModel):
     # Dataset filtering
@@ -9,7 +41,7 @@ class SimulationRequest(BaseModel):
     leagues: list[str] | None = None
     season: str
 
-    # Strategy model
+    # Strategy
     selection: Literal["H", "D", "A"] | None = None
     rule_expression: str | None = None
 
@@ -33,8 +65,8 @@ class SimulationRequest(BaseModel):
     step_matches: int | None = None
 
     # Calendar period mode
-    period_mode: Literal["none", "custom_day_groups"] = "none"
-    custom_periods: dict[str, list[int]] | None = None
+    period_mode: Literal["none", "custom"] = "none"
+    custom_periods: list[CustomPeriodDefinition] | None = None
     reset_bankroll_each_period: bool = False
 
     # Ranking / candidate selection
@@ -92,10 +124,28 @@ class SimulationRequest(BaseModel):
                     "step_matches must be provided and > 0 when walk_forward=True"
                 )
 
-        if self.period_mode == "custom_day_groups" and not self.custom_periods:
-            raise ValueError(
-                "custom_periods is required when period_mode='custom_day_groups'"
-            )
+        if self.period_mode == "custom":
+            if not self.custom_periods:
+                raise ValueError("custom_periods is required when period_mode='custom'")
+
+            names = [period.name.strip().lower() for period in self.custom_periods]
+            if len(names) != len(set(names)):
+                raise ValueError("custom period names must be unique")
+
+            covered_by_period: list[tuple[str, set[int]]] = []
+            for period in self.custom_periods:
+                covered_by_period.append(
+                    (period.name, _covered_days(period.start_day, period.end_day))
+                )
+
+            for i in range(len(covered_by_period)):
+                name_a, days_a = covered_by_period[i]
+                for j in range(i + 1, len(covered_by_period)):
+                    name_b, days_b = covered_by_period[j]
+                    if days_a & days_b:
+                        raise ValueError(
+                            f"overlapping custom periods are not allowed: {name_a} and {name_b}"
+                        )
 
         if self.max_candidates_per_period is not None:
             if self.max_candidates_per_period <= 0:
