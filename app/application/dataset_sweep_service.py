@@ -3,6 +3,7 @@ from typing import Any
 
 from app.application.dataset_service import DatasetService
 from app.application.in_memory_dataset_loader import load_matches_from_csv
+from app.domain.simulation.config import SimulationConfig
 from app.infrastructure.persistence_models.dataset import Dataset
 from app.infrastructure.persistence_models.simulation_run import SimulationRun
 from app.infrastructure.repositories.simulation_run_repository import (
@@ -80,9 +81,10 @@ class DatasetSweepService:
 
         for params in self._generate_param_combinations(grid):
             variant_request = base_request.model_copy(update=params)
+            variant_config = SimulationConfig.from_request(variant_request)
 
             # Filter once per variant request
-            matches = self._filter_matches_for_request(all_matches, variant_request)
+            matches = self._filter_matches_for_request(all_matches, variant_config)
 
             # Reuse dataset service execution path
             simulation_result = self.dataset_service.simulate_loaded_matches(

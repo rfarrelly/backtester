@@ -11,6 +11,7 @@ from app.application.calendar_period_service import CalendarPeriodService
 from app.application.in_memory_dataset_loader import load_matches_from_csv
 from app.application.strategy_factory import build_strategy
 from app.application.walk_forward_service import WalkForwardService
+from app.domain.simulation.config import SimulationConfig
 from app.domain.simulation.engine import SimulationEngine
 from app.infrastructure.persistence_models.dataset import Dataset
 from app.infrastructure.persistence_models.simulation_run import SimulationRun
@@ -314,13 +315,15 @@ class DatasetService:
         self._validate_walk_forward_request(request)
         self._validate_calendar_request(request)
 
-        if request.walk_forward:
-            result = WalkForwardService().run(matches, request)
-        elif request.period_mode != "none":
-            result = CalendarPeriodService().run(matches, request)
+        config = SimulationConfig.from_request(request)
+
+        if config.walk_forward_enabled:
+            result = WalkForwardService().run(matches, config)
+        elif config.period_mode != "none":
+            result = CalendarPeriodService().run(matches, config)
         else:
-            strategy = build_strategy(request)
-            engine = SimulationEngine(request, strategy)
+            strategy = build_strategy(config)
+            engine = SimulationEngine(config, strategy)
             result = engine.run(matches)
 
         if not persist:

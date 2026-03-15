@@ -1,18 +1,23 @@
 from app.application.strategy_factory import build_strategy
+from app.domain.simulation.config import SimulationConfig
 from app.domain.simulation.engine import SimulationEngine
+from app.domain.simulation.models import SimulationRequest
 
 
 class WalkForwardService:
     def __init__(self):
         pass
 
-    def run(self, matches, request):
-        if not request.train_window_matches or not request.test_window_matches:
+    def run(self, matches, config: SimulationConfig | SimulationRequest):
+        if isinstance(config, SimulationRequest):
+            config = SimulationConfig.from_request(config)
+
+        if not config.train_window_matches or not config.test_window_matches:
             raise ValueError(
                 "train_window_matches and test_window_matches are required when walk_forward=True"
             )
 
-        step = request.step_matches or request.test_window_matches
+        step = config.step_matches or config.test_window_matches
 
         segments = []
         combined_bets = []
@@ -20,12 +25,12 @@ class WalkForwardService:
 
         start = 0
         segment_index = 0
-        running_bankroll = request.starting_bankroll
+        running_bankroll = config.starting_bankroll
 
         while True:
             train_start = start
-            train_end = train_start + request.train_window_matches
-            test_end = train_end + request.test_window_matches
+            train_end = train_start + config.train_window_matches
+            test_end = train_end + config.test_window_matches
 
             if test_end > len(matches):
                 break
@@ -33,16 +38,12 @@ class WalkForwardService:
             train_matches = matches[train_start:train_end]
             test_matches = matches[train_end:test_end]
 
-            # Use a fresh request per segment so bankroll rolls forward cleanly
-            segment_request = request.model_copy(
-                update={
-                    "starting_bankroll": running_bankroll,
-                    "walk_forward": False,
-                }
-            )
+            segment_config = config.with_starting_bankroll(
+                running_bankroll
+            ).without_walk_forward()
 
-            strategy = build_strategy(segment_request)
-            engine = SimulationEngine(segment_request, strategy)
+            strategy = build_strategy(segment_config)
+            engine = SimulationEngine(segment_config, strategy)
             result = engine.run(test_matches)
 
             segment_summary = {
@@ -73,7 +74,6 @@ class WalkForwardService:
             segments.append(segment_summary)
             combined_bets.extend(result["bets"])
 
-            # stitch equity curve
             for point in result.get("equity_curve", []):
                 combined_equity_curve.append(
                     {
@@ -86,10 +86,10 @@ class WalkForwardService:
             segment_index += 1
             start += step
 
-        total_profit = running_bankroll - request.starting_bankroll
+        total_profit = running_bankroll - config.starting_bankroll
         aggregate_roi = (
-            (total_profit / request.starting_bankroll) * 100
-            if request.starting_bankroll
+            (total_profit / config.starting_bankroll) * 100
+            if config.starting_bankroll
             else 0
         )
 
@@ -98,7 +98,7 @@ class WalkForwardService:
             "segments": segments,
             "bets": combined_bets,
             "equity_curve": combined_equity_curve,
-            "starting_bankroll": request.starting_bankroll,
+            "starting_bankroll": config.starting_bankroll,
             "final_bankroll": round(running_bankroll, 2),
             "roi_percent": round(aggregate_roi, 2),
             "total_segments": len(segments),

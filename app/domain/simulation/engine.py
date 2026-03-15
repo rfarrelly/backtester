@@ -1,8 +1,10 @@
 from itertools import combinations, groupby
 from operator import attrgetter
 
+from app.domain.simulation.config import SimulationConfig
 from app.domain.simulation.context import RollingContext
 from app.domain.simulation.entities import Match
+from app.domain.simulation.models import SimulationRequest
 
 
 class SettledBet:
@@ -75,26 +77,27 @@ def settle_matured_bets(active_bets, kickoff, bankroll, team_locks, settle_all=F
     return bankroll, settled
 
 
-def calculate_stake(request, bankroll, combined_odds, combined_prob):
-    if request.staking_method == "fixed":
-        return request.fixed_stake
+def calculate_stake(config: SimulationConfig, bankroll, combined_odds, combined_prob):
+    if config.staking_method == "fixed":
+        return config.fixed_stake
 
-    if request.staking_method == "percent":
-        return bankroll * request.percent_stake
+    if config.staking_method == "percent":
+        return bankroll * config.percent_stake
 
-    if request.staking_method == "kelly":
+    if config.staking_method == "kelly":
         if combined_prob is None:
             return None
 
         b = combined_odds - 1
         if b <= 0:
             return None
+
         f = (b * combined_prob - (1 - combined_prob)) / b
 
         if f <= 0:
             return None
 
-        return bankroll * f * request.kelly_fraction
+        return bankroll * f * config.kelly_fraction
 
     return None
 
@@ -121,14 +124,44 @@ def build_valid_combo(
     return None
 
 
+def calculate_metrics(settled_bets, starting_bankroll, final_bankroll):
+    total_bets = len(settled_bets)
+    total_wins = sum(1 for b in settled_bets if b.is_win)
+    total_losses = total_bets - total_wins
+
+    total_staked = sum(b.stake for b in settled_bets)
+    total_profit = final_bankroll - starting_bankroll
+
+    roi_percent = (total_profit / total_staked * 100) if total_staked > 0 else 0
+    strike_rate_percent = (total_wins / total_bets * 100) if total_bets > 0 else 0
+
+    gross_profit = sum(b.profit for b in settled_bets if b.profit > 0)
+    gross_loss = abs(sum(b.profit for b in settled_bets if b.profit < 0))
+    profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else None
+
+    return {
+        "total_bets": total_bets,
+        "total_wins": total_wins,
+        "total_losses": total_losses,
+        "roi_percent": round(roi_percent, 2),
+        "strike_rate_percent": round(strike_rate_percent, 2),
+        "profit_factor": round(profit_factor, 2) if profit_factor is not None else None,
+        "total_staked": round(total_staked, 2),
+        "total_profit": round(total_profit, 2),
+    }
+
+
 class SimulationEngine:
-    def __init__(self, request, strategy):
-        self.request = request
+    def __init__(self, config: SimulationConfig | SimulationRequest, strategy):
+        if isinstance(config, SimulationRequest):
+            config = SimulationConfig.from_request(config)
+
+        self.config = config
         self.strategy = strategy
 
         # Simulation state
         self.context = RollingContext(window_size=5)
-        self.bankroll = request.starting_bankroll
+        self.bankroll = config.starting_bankroll
         self.active_bets = []
         self.settled_bets = []
         self.team_locks = {}
@@ -139,17 +172,13 @@ class SimulationEngine:
         self.peak_bankroll = self.bankroll
         self.equity_curve = [{"t": None, "bankroll": round(self.bankroll, 2)}]
 
-    # --------------------------------------------------
-    # Public API
-    # --------------------------------------------------
-
     def run(self, matches: list[Match]):
         available_features = sorted(
             {k for m in matches for k in (getattr(m, "features", {}) or {}).keys()}
         )
+
         for kickoff, group in groupby(matches, key=attrgetter("kickoff")):
             batch = list(group)
-
             self._settle_matured(kickoff)
             self._process_kickoff_batch(batch)
 
@@ -157,7 +186,7 @@ class SimulationEngine:
 
         metrics = calculate_metrics(
             self.settled_bets,
-            self.request.starting_bankroll,
+            self.config.starting_bankroll,
             self.bankroll,
         )
 
@@ -167,23 +196,9 @@ class SimulationEngine:
             "available_features": available_features,
             "max_drawdown_percent": round(self.max_drawdown * 100, 2),
             "equity_curve": self.equity_curve,
-            "run_config": {
-                "league": self.request.league,
-                "season": self.request.season,
-                "selection": self.request.selection,
-                "staking_method": self.request.staking_method,
-                "fixed_stake": self.request.fixed_stake,
-                "percent_stake": self.request.percent_stake,
-                "kelly_fraction": self.request.kelly_fraction,
-                "multiple_legs": self.request.multiple_legs,
-                "min_odds": self.request.min_odds,
-            },
+            "run_config": self.config.to_run_config(),
             **metrics,
         }
-
-    # --------------------------------------------------
-    # Core Steps
-    # --------------------------------------------------
 
     def _settle_matured(self, kickoff):
         self.bankroll, newly_settled = settle_matured_bets(
@@ -208,22 +223,21 @@ class SimulationEngine:
                 continue
 
             decision = self.strategy.evaluate(match, context=self.context)
-
             if not decision.place_bet:
                 continue
 
             eligible.append((match, decision.selection))
 
-        if self.request.multiple_legs <= 1:
+        if self.config.multiple_legs <= 1:
             for candidate in eligible:
                 self._attempt_place_bet([candidate])
         else:
             self.pending_candidates.extend(eligible)
 
-            while len(self.pending_candidates) >= self.request.multiple_legs:
+            while len(self.pending_candidates) >= self.config.multiple_legs:
                 combo = build_valid_combo(
                     self.pending_candidates,
-                    self.request.multiple_legs,
+                    self.config.multiple_legs,
                 )
 
                 if not combo:
@@ -240,7 +254,6 @@ class SimulationEngine:
                     if candidate[0].id not in used_match_ids
                 ]
 
-        # ALWAYS update context
         for match in batch:
             self.context.update(match)
 
@@ -256,13 +269,13 @@ class SimulationEngine:
                 "A": match.away_win_odds,
             }[selection]
 
-            if self.request.min_odds is not None and odds < self.request.min_odds:
+            if self.config.min_odds is not None and odds < self.config.min_odds:
                 return False
 
             combined_odds *= odds
             selections[match.id] = selection
 
-            if self.request.staking_method == "kelly":
+            if self.config.staking_method == "kelly":
                 prob = {
                     "H": match.model_home_prob,
                     "D": match.model_draw_prob,
@@ -273,178 +286,85 @@ class SimulationEngine:
                     return False
 
                 combined_prob *= prob
+            else:
+                combined_prob = None
 
         stake = calculate_stake(
-            self.request,
+            self.config,
             self.bankroll,
             combined_odds,
             combined_prob,
         )
-
         if stake is None or stake <= 0 or stake > self.bankroll:
             return False
 
-        bet = Bet(
-            matches=[match for match, _ in combo],
-            stake=stake,
-            combined_odds=combined_odds,
-            settles_at=max(match.kickoff for match, _ in combo),
-            selections=selections,
+        settles_at = max(match.kickoff for match, _ in combo)
+        matches = [match for match, _ in combo]
+
+        self.bankroll -= stake
+        self.active_bets.append(
+            Bet(
+                matches=matches,
+                stake=stake,
+                combined_odds=combined_odds,
+                settles_at=settles_at,
+                selections=selections,
+            )
         )
 
-        self.active_bets.append(bet)
-        self.bankroll -= stake
-
-        for match, _ in combo:
-            self.team_locks[match.home_team] = match.id
-            self.team_locks[match.away_team] = match.id
+        for match in matches:
+            self.team_locks[match.home_team] = True
+            self.team_locks[match.away_team] = True
 
         return True
 
     def _final_settlement(self, matches):
-        if not matches:
-            return
-
-        final_kickoff = matches[-1].kickoff
-
-        self.bankroll, newly_settled = settle_matured_bets(
-            self.active_bets,
-            final_kickoff,
-            self.bankroll,
-            self.team_locks,
-            settle_all=True,
-        )
-
-        self.settled_bets.extend(newly_settled)
-        for b in newly_settled:
-            self.equity_curve.append(
-                {"t": b.settled_at.isoformat(), "bankroll": round(self.bankroll, 2)}
+        if matches:
+            final_kickoff = max(match.kickoff for match in matches)
+            self.bankroll, newly_settled = settle_matured_bets(
+                self.active_bets,
+                final_kickoff,
+                self.bankroll,
+                self.team_locks,
+                settle_all=True,
             )
-        self._update_drawdown()
+            self.settled_bets.extend(newly_settled)
 
-    # --------------------------------------------------
-    # Risk Tracking
-    # --------------------------------------------------
+            for b in newly_settled:
+                self.equity_curve.append(
+                    {"t": b.settled_at.isoformat(), "bankroll": round(self.bankroll, 2)}
+                )
+            self._update_drawdown()
 
     def _update_drawdown(self):
         if self.bankroll > self.peak_bankroll:
             self.peak_bankroll = self.bankroll
 
-        if self.peak_bankroll == 0:
-            return
-        drawdown = (self.peak_bankroll - self.bankroll) / self.peak_bankroll
-        self.max_drawdown = max(self.max_drawdown, drawdown)
+        if self.peak_bankroll > 0:
+            drawdown = (self.peak_bankroll - self.bankroll) / self.peak_bankroll
+            self.max_drawdown = max(self.max_drawdown, drawdown)
 
-    def _serialize_bet(self, b):
-        legs = []
-
-        for m in b.matches:
-            selection = b.selections.get(m.id) or b.selections.get(str(m.id))
-
-            odds = None
-            model_prob = None
-
-            if selection == "H":
-                odds = m.home_win_odds
-                model_prob = m.model_home_prob
-            elif selection == "D":
-                odds = m.draw_odds
-                model_prob = m.model_draw_prob
-            elif selection == "A":
-                odds = m.away_win_odds
-                model_prob = m.model_away_prob
-
-            implied_prob = round(1 / odds, 6) if odds else None
-            edge = (
-                round(model_prob - implied_prob, 6)
-                if (model_prob is not None and implied_prob is not None)
-                else None
-            )
-
-            legs.append(
-                {
-                    "match_id": str(m.id),
-                    "kickoff": m.kickoff.isoformat(),
-                    "home_team": m.home_team,
-                    "away_team": m.away_team,
-                    "result": m.result,
-                    "selection": selection,
-                    "odds": odds,
-                    "implied_prob": implied_prob,
-                    "model_prob": model_prob,
-                    "edge": edge,
-                    "features": getattr(m, "features", {}) or {},
-                }
-            )
-
+    def _serialize_bet(self, bet: SettledBet):
         return {
-            "stake": round(b.stake, 2),
-            "combined_odds": round(b.combined_odds, 4),
-            "is_win": b.is_win,
-            "profit": round(b.profit, 2),
-            "return_amount": round(b.return_amount, 2),
-            "settled_at": b.settled_at.isoformat() if b.settled_at else None,
-            "legs": legs,
-            "meta": {
-                "rule_expression": getattr(self.request, "rule_expression", None),
-                "selection": getattr(self.request, "selection", None),
-                "staking_method": self.request.staking_method,
-                "multiple_legs": self.request.multiple_legs,
-                "min_odds": self.request.min_odds,
-            },
+            "stake": round(bet.stake, 2),
+            "combined_odds": round(bet.combined_odds, 4),
+            "is_win": bet.is_win,
+            "return_amount": round(bet.return_amount, 2),
+            "profit": round(bet.profit, 2),
+            "settled_at": bet.settled_at.isoformat(),
+            "legs": [
+                {
+                    "match_id": str(match.id),
+                    "home_team": match.home_team,
+                    "away_team": match.away_team,
+                    "selection": bet.selections[match.id],
+                    "result": match.result,
+                    "odds": {
+                        "H": match.home_win_odds,
+                        "D": match.draw_odds,
+                        "A": match.away_win_odds,
+                    }[bet.selections[match.id]],
+                }
+                for match in bet.matches
+            ],
         }
-
-
-def calculate_metrics(settled_bets, starting_bankroll, final_bankroll):
-    total_bets = len(settled_bets)
-    total_staked = sum(b.stake for b in settled_bets)
-    total_profit = sum(b.profit for b in settled_bets)
-    gross_profit = sum(b.profit for b in settled_bets if b.profit > 0)
-    gross_loss = -sum(b.profit for b in settled_bets if b.profit < 0)
-    profit_factor = gross_profit / gross_loss if gross_loss > 0 else None
-
-    total_wins = sum(1 for b in settled_bets if b.is_win)
-    total_losses = total_bets - total_wins
-
-    strike_rate = (total_wins / total_bets * 100) if total_bets else 0
-
-    avg_odds = (
-        sum(b.combined_odds for b in settled_bets) / total_bets if total_bets else 0
-    )
-
-    roi = (
-        (final_bankroll - starting_bankroll) / starting_bankroll * 100
-        if starting_bankroll
-        else 0
-    )
-
-    # Streaks
-    longest_win_streak = 0
-    longest_loss_streak = 0
-    current_win_streak = 0
-    current_loss_streak = 0
-
-    for bet in settled_bets:
-        if bet.is_win:
-            current_win_streak += 1
-            current_loss_streak = 0
-        else:
-            current_loss_streak += 1
-            current_win_streak = 0
-
-        longest_win_streak = max(longest_win_streak, current_win_streak)
-        longest_loss_streak = max(longest_loss_streak, current_loss_streak)
-
-    return {
-        "total_bets": total_bets,
-        "total_wins": total_wins,
-        "total_losses": total_losses,
-        "strike_rate_percent": round(strike_rate, 2),
-        "total_staked": round(total_staked, 2),
-        "total_profit": round(total_profit, 2),
-        "average_odds": round(avg_odds, 2),
-        "longest_win_streak": longest_win_streak,
-        "longest_loss_streak": longest_loss_streak,
-        "roi_percent": round(roi, 2),
-        "profit_factor": profit_factor,
-    }

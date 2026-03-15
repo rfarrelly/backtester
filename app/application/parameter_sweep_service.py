@@ -1,5 +1,6 @@
 import itertools
 
+from app.domain.simulation.config import SimulationConfig
 from app.domain.simulation.engine import SimulationEngine
 
 
@@ -7,12 +8,16 @@ class ParameterSweep:
     def __init__(self, matches, base_request, strategy_factory, param_grid):
         """
         matches: list of match objects
-        base_request: SimulationRequest
-        strategy_factory: callable that builds strategy from params
+        base_request: SimulationRequest | SimulationConfig
+        strategy_factory: callable that builds strategy from params or config
         param_grid: dict like {"min_edge": [0.01, 0.05], "window": [3,5]}
         """
         self.matches = matches
-        self.base_request = base_request
+        self.base_config = (
+            base_request
+            if isinstance(base_request, SimulationConfig)
+            else SimulationConfig.from_request(base_request)
+        )
         self.strategy_factory = strategy_factory
         self.param_grid = param_grid
 
@@ -27,12 +32,18 @@ class ParameterSweep:
         results = self.run()
         return sorted(results, key=lambda x: x["roi_percent"], reverse=True)
 
+    def _build_strategy(self, config, params):
+        try:
+            return self.strategy_factory(config)
+        except TypeError:
+            return self.strategy_factory(**params)
+
     def run(self):
         results = []
 
         for params in self._generate_param_combinations():
-            request_copy = self.base_request.model_copy(update=params)
-            strategy = self.strategy_factory(**params)
+            request_copy = self.base_config.with_updates(**params)
+            strategy = self._build_strategy(request_copy, params)
 
             engine = SimulationEngine(request_copy, strategy)
             simulation_result = engine.run(self.matches)
