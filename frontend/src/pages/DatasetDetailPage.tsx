@@ -77,9 +77,54 @@ function buildInitialSimulationRequest(): SimulationRequest {
 }
 
 function normalizeRequest(request: SimulationRequest): SimulationRequest {
-  return {
+  const normalized: SimulationRequest = {
     ...request,
+    league: request.league ?? null,
+    leagues: request.leagues ?? [],
+    rule_expression:
+      request.rule_expression && request.rule_expression.trim().length > 0
+        ? request.rule_expression.trim()
+        : null,
+    min_odds: request.min_odds ?? null,
+    train_window_matches: request.train_window_matches ?? null,
+    test_window_matches: request.test_window_matches ?? null,
+    step_matches: request.step_matches ?? null,
+    max_candidates_per_period: request.max_candidates_per_period ?? null,
+    rank_by: request.rank_by ?? null,
+    custom_periods:
+      request.period_mode === "custom" ? request.custom_periods ?? [] : null,
   };
+
+  if (request.staking_method === "fixed") {
+    normalized.fixed_stake = request.fixed_stake ?? null;
+    normalized.percent_stake = null;
+    normalized.kelly_fraction = null;
+  } else if (request.staking_method === "percent") {
+    normalized.fixed_stake = null;
+    normalized.percent_stake = request.percent_stake ?? null;
+    normalized.kelly_fraction = null;
+  } else if (request.staking_method === "kelly") {
+    normalized.fixed_stake = null;
+    normalized.percent_stake = null;
+    normalized.kelly_fraction = request.kelly_fraction ?? null;
+  }
+
+  if (normalized.period_mode !== "custom") {
+    normalized.custom_periods = null;
+    normalized.reset_bankroll_each_period = false;
+    normalized.max_candidates_per_period = null;
+    normalized.rank_by = null;
+    normalized.rank_order = "asc";
+    normalized.require_full_candidate_count = false;
+  }
+
+  if (!normalized.walk_forward) {
+    normalized.train_window_matches = null;
+    normalized.test_window_matches = null;
+    normalized.step_matches = null;
+  }
+
+  return normalized;
 }
 
 export default function DatasetDetailPage() {

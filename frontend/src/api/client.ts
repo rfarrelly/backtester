@@ -35,12 +35,33 @@ export async function apiFetch<T>(
 
   if (!response.ok) {
     let message = `HTTP ${response.status}`;
+
     try {
       const data = await response.json();
-      message = data.detail ?? message;
+      const detail = data?.detail;
+
+      if (typeof detail === "string") {
+        message = detail;
+      } else if (Array.isArray(detail)) {
+        message = detail
+          .map((item) => {
+            if (typeof item === "string") {
+              return item;
+            }
+
+            const loc = Array.isArray(item?.loc) ? item.loc.join(".") : "";
+            const msg = item?.msg ?? JSON.stringify(item);
+
+            return loc ? `${loc}: ${msg}` : msg;
+          })
+          .join(" | ");
+      } else if (detail && typeof detail === "object") {
+        message = JSON.stringify(detail);
+      }
     } catch {
       // ignore parse errors
     }
+
     throw new Error(message);
   }
 
