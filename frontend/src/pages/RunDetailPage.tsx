@@ -74,9 +74,7 @@ export default function RunDetailPage() {
     saveSimulationDraft(run.dataset_id, {
       sourceRunId: run.run_id,
       mapping: run.mapping,
-      request: {
-        ...run.request,
-      },
+      request: run.request,
       persist: true,
     });
 
