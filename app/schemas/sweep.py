@@ -14,11 +14,16 @@ class DatasetSweepRequest(BaseModel):
 
 
 class SweepVariantResult(BaseModel):
+    # New preferred field.
+    parameters: dict[str, Any]
+    # Backward-compatible alias for older consumers.
     params: dict[str, Any]
     run_id: str | None = None
-    roi_percent: float
-    final_bankroll: float
-    total_bets: int
+    roi_percent: float | None = None
+    final_bankroll: float | None = None
+    total_bets: int | None = None
+    total_wins: int | None = None
+    total_losses: int | None = None
     max_drawdown_percent: float | None = None
     strike_rate_percent: float | None = None
     profit_factor: float | None = None
@@ -27,5 +32,10 @@ class SweepVariantResult(BaseModel):
 
 
 class DatasetSweepResponse(BaseModel):
+    # New analytics-oriented shape.
+    parameter_names: list[str]
+    row_count: int
+    rows: list[SweepVariantResult]
+    # Backward-compatible aliases.
     total_variants: int
     results: list[SweepVariantResult]

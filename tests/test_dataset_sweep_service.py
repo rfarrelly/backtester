@@ -86,9 +86,16 @@ def test_dataset_sweep_single_parameter(db_session, tmp_path):
         persist_runs=False,
     )
 
+    assert result["parameter_names"] == ["multiple_legs"]
+    assert result["row_count"] == 2
+    assert len(result["rows"]) == 2
+
+    # Backward-compatible aliases remain available.
     assert result["total_variants"] == 2
     assert len(result["results"]) == 2
-    assert {r["params"]["multiple_legs"] for r in result["results"]} == {1, 2}
+
+    assert {r["parameters"]["multiple_legs"] for r in result["rows"]} == {1, 2}
+    assert {r["params"]["multiple_legs"] for r in result["rows"]} == {1, 2}
 
 
 def test_dataset_sweep_two_parameter_grid(db_session, tmp_path):
@@ -107,12 +114,13 @@ def test_dataset_sweep_two_parameter_grid(db_session, tmp_path):
         persist_runs=False,
     )
 
-    assert result["total_variants"] == 4
-    assert len(result["results"]) == 4
+    assert result["parameter_names"] == ["multiple_legs", "fixed_stake"]
+    assert result["row_count"] == 4
+    assert len(result["rows"]) == 4
 
     params_seen = {
-        (r["params"]["multiple_legs"], r["params"]["fixed_stake"])
-        for r in result["results"]
+        (r["parameters"]["multiple_legs"], r["parameters"]["fixed_stake"])
+        for r in result["rows"]
     }
     assert params_seen == {(1, 50), (1, 100), (2, 50), (2, 100)}
 
@@ -130,5 +138,32 @@ def test_dataset_sweep_persists_runs(db_session, tmp_path):
         persist_runs=True,
     )
 
-    assert result["total_variants"] == 2
-    assert all(r["run_id"] is not None for r in result["results"])
+    assert result["row_count"] == 2
+    assert all(r["run_id"] is not None for r in result["rows"])
+
+
+def test_dataset_sweep_rows_include_flat_metrics(db_session, tmp_path):
+    owner_id, ds = _make_dataset(db_session, tmp_path)
+    service = DatasetSweepService(db_session)
+
+    result = service.run_sweep(
+        dataset_id=ds.id,
+        owner_user_id=owner_id,
+        mapping=_mapping(),
+        base_request=_base_request(),
+        grid={"multiple_legs": [1]},
+        persist_runs=False,
+    )
+
+    row = result["rows"][0]
+    assert "parameters" in row
+    assert "params" in row
+    assert "roi_percent" in row
+    assert "total_profit" in row
+    assert "total_bets" in row
+    assert "total_wins" in row
+    assert "total_losses" in row
+    assert "strike_rate_percent" in row
+    assert "max_drawdown_percent" in row
+    assert "profit_factor" in row
+    assert "final_bankroll" in row
