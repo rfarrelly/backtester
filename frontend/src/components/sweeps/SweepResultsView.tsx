@@ -1,130 +1,164 @@
-import { Link } from "react-router-dom";
+import { useMemo, useState } from "react";
 import type { DatasetSweepResponse } from "../../types/api";
+import SweepHeatmap from "./SweepHeatmap";
+import SweepResultsTable from "./SweepResultsTable";
+import SweepSummaryCards from "./SweepSummaryCards";
+import {
+  filterSweepRowsByMinBets,
+  formatSweepMetric,
+  getSweepParameterNames,
+  getSweepRows,
+  sortSweepRows,
+  type SweepMetricField,
+  type SweepSortDirection,
+  type SweepSortField,
+} from "./sweepAnalytics";
 
 type Props = {
   result: DatasetSweepResponse | null;
 };
 
 export default function SweepResultsView({ result }: Props) {
+  const rows = useMemo(() => getSweepRows(result), [result]);
+  const parameterNames = useMemo(() => getSweepParameterNames(result), [result]);
+
+  const [minBets, setMinBets] = useState(0);
+  const [sortBy, setSortBy] = useState<SweepSortField>("roi_percent");
+  const [sortDirection, setSortDirection] = useState<SweepSortDirection>("desc");
+  const [heatmapMetric, setHeatmapMetric] = useState<Extract<SweepMetricField, "roi_percent" | "total_profit" | "profit_factor">>("roi_percent");
+
+  const filteredRows = useMemo(() => filterSweepRowsByMinBets(rows, minBets), [rows, minBets]);
+  const sortedRows = useMemo(
+    () => sortSweepRows(filteredRows, sortBy, sortDirection),
+    [filteredRows, sortBy, sortDirection]
+  );
+
   if (!result) {
     return <div>No sweep run yet.</div>;
   }
 
-  if (result.results.length === 0) {
+  if (rows.length === 0) {
     return <div>No sweep variants returned.</div>;
   }
+
+  function handleSortChange(field: SweepSortField) {
+    if (field === sortBy) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortBy(field);
+    setSortDirection(field === "max_drawdown_percent" ? "asc" : "desc");
+  }
+
+  const totalVariants = result.row_count ?? result.total_variants ?? rows.length;
+  const showHeatmap = parameterNames.length === 2 && sortedRows.length > 0;
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <div
         style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-end",
           gap: 12,
+          flexWrap: "wrap",
         }}
       >
-        <SummaryCard label="Total variants" value={String(result.total_variants)} />
-        <SummaryCard
-          label="Best ROI %"
-          value={formatNumber(result.results[0]?.roi_percent ?? 0)}
-        />
-        <SummaryCard
-          label="Best final bankroll"
-          value={formatNumber(result.results[0]?.final_bankroll ?? 0)}
-        />
+        <div>
+          <div style={{ fontSize: 12, color: "#64748b" }}>Sweep results</div>
+          <div style={{ marginTop: 4, fontSize: 20, fontWeight: 700 }}>
+            {totalVariants} variants
+          </div>
+          <div style={{ marginTop: 4, fontSize: 13, color: "#475569" }}>
+            Showing {sortedRows.length} after filtering by minimum bet count.
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <label style={{ display: "grid", gap: 4 }}>
+            <span style={{ fontSize: 13, color: "#475569" }}>Minimum bets</span>
+            <input
+              type="number"
+              min={0}
+              value={minBets}
+              onChange={(e) => setMinBets(Math.max(0, Number(e.target.value) || 0))}
+              style={{ padding: 8, minWidth: 120 }}
+            />
+          </label>
+
+          {showHeatmap ? (
+            <label style={{ display: "grid", gap: 4 }}>
+              <span style={{ fontSize: 13, color: "#475569" }}>Heatmap metric</span>
+              <select
+                value={heatmapMetric}
+                onChange={(e) =>
+                  setHeatmapMetric(
+                    e.target.value as Extract<
+                      SweepMetricField,
+                      "roi_percent" | "total_profit" | "profit_factor"
+                    >
+                  )
+                }
+                style={{ padding: 8, minWidth: 160 }}
+              >
+                <option value="roi_percent">ROI %</option>
+                <option value="total_profit">Profit</option>
+                <option value="profit_factor">Profit factor</option>
+              </select>
+            </label>
+          ) : null}
+        </div>
       </div>
 
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th style={thStyle}>Rank</th>
-              <th style={thStyle}>Params</th>
-              <th style={thStyle}>ROI %</th>
-              <th style={thStyle}>Final bankroll</th>
-              <th style={thStyle}>Bets</th>
-              <th style={thStyle}>Max DD %</th>
-              <th style={thStyle}>Strike rate %</th>
-              <th style={thStyle}>Profit factor</th>
-              <th style={thStyle}>Profit</th>
-              <th style={thStyle}>Run</th>
-            </tr>
-          </thead>
-          <tbody>
-            {result.results.map((row, index) => (
-              <tr key={index}>
-                <td style={tdStyle}>{index + 1}</td>
-                <td style={tdStyle}>
-                  <code style={{ whiteSpace: "pre-wrap" }}>
-                    {formatParams(row.params)}
-                  </code>
-                </td>
-                <td style={tdStyle}>{formatNumber(row.roi_percent)}</td>
-                <td style={tdStyle}>{formatNumber(row.final_bankroll)}</td>
-                <td style={tdStyle}>{row.total_bets}</td>
-                <td style={tdStyle}>
-                  {row.max_drawdown_percent != null
-                    ? formatNumber(row.max_drawdown_percent)
-                    : "-"}
-                </td>
-                <td style={tdStyle}>
-                  {row.strike_rate_percent != null
-                    ? formatNumber(row.strike_rate_percent)
-                    : "-"}
-                </td>
-                <td style={tdStyle}>
-                  {row.profit_factor != null ? formatNumber(row.profit_factor) : "-"}
-                </td>
-                <td style={tdStyle}>
-                  {row.total_profit != null ? formatNumber(row.total_profit) : "-"}
-                </td>
-                <td style={tdStyle}>
-                  {row.run_id ? <Link to={`/runs/${row.run_id}`}>Open</Link> : "-"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <SweepSummaryCards rows={sortedRows} />
+
+      <div
+        style={{
+          border: "1px solid #e5e7eb",
+          borderRadius: 10,
+          background: "#fff",
+          padding: 12,
+          display: "flex",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <InfoPill label="Parameters" value={parameterNames.join(", ") || "-"} />
+        <InfoPill label="Best ROI %" value={formatSweepMetric(sortedRows[0]?.roi_percent)} />
+        <InfoPill label="Best profit" value={formatSweepMetric(sortSweepRows(filteredRows, "total_profit", "desc")[0]?.total_profit)} />
       </div>
+
+      {showHeatmap ? (
+        <SweepHeatmap
+          rows={sortedRows}
+          parameterNames={parameterNames as [string, string]}
+          metric={heatmapMetric}
+        />
+      ) : null}
+
+      <SweepResultsTable
+        rows={sortedRows}
+        parameterNames={parameterNames}
+        sortBy={sortBy}
+        sortDirection={sortDirection}
+        onSortChange={handleSortChange}
+      />
     </div>
   );
 }
 
-function formatParams(params: Record<string, unknown>): string {
-  return Object.entries(params)
-    .map(([k, v]) => `${k}=${String(v)}`)
-    .join(", ");
-}
-
-function formatNumber(value: number): string {
-  return Number.isInteger(value) ? String(value) : value.toFixed(2);
-}
-
-function SummaryCard({ label, value }: { label: string; value: string }) {
+function InfoPill({ label, value }: { label: string; value: string }) {
   return (
     <div
       style={{
-        border: "1px solid #ddd",
-        borderRadius: 8,
-        padding: 12,
-        background: "#fafafa",
+        borderRadius: 999,
+        border: "1px solid #e5e7eb",
+        background: "#f8fafc",
+        padding: "8px 12px",
       }}
     >
-      <div style={{ fontSize: 12, color: "#666" }}>{label}</div>
-      <div style={{ marginTop: 4, fontWeight: 600 }}>{value}</div>
+      <span style={{ fontSize: 12, color: "#64748b" }}>{label}: </span>
+      <span style={{ fontSize: 13, fontWeight: 600 }}>{value}</span>
     </div>
   );
 }
-
-const thStyle: React.CSSProperties = {
-  textAlign: "left",
-  borderBottom: "1px solid #ddd",
-  padding: "8px 12px",
-  whiteSpace: "nowrap",
-};
-
-const tdStyle: React.CSSProperties = {
-  borderBottom: "1px solid #eee",
-  padding: "8px 12px",
-  verticalAlign: "top",
-};

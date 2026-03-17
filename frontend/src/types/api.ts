@@ -1,3 +1,18 @@
+export type DayKey =
+  | "mon"
+  | "tue"
+  | "wed"
+  | "thu"
+  | "fri"
+  | "sat"
+  | "sun";
+
+export type CustomPeriodDefinition = {
+  name: string;
+  start_day: DayKey;
+  end_day: DayKey;
+};
+
 export type LoginResponse = {
   access_token: string;
   token_type: string;
@@ -44,20 +59,12 @@ export type DatasetMapping = {
   feature_cols: string[];
 };
 
-export type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
-
-export type CustomPeriodDefinition = {
-  name: string;
-  start_day: DayKey;
-  end_day: DayKey;
-};
-
 export type SimulationRequest = {
   league?: string | null;
   leagues?: string[] | null;
   season: string;
 
-  selection?: "H" | "D" | "A" | null;
+  selection: "H" | "D" | "A" | null;
   rule_expression?: string | null;
 
   staking_method: "fixed" | "percent" | "kelly";
@@ -67,7 +74,6 @@ export type SimulationRequest = {
 
   starting_bankroll: number;
   multiple_legs: number;
-
   min_odds?: number | null;
 
   walk_forward?: boolean;
@@ -208,7 +214,7 @@ export type CalendarPeriodSummary = {
   total_wins?: number;
   total_losses?: number;
   strike_rate_percent?: number;
-  max_drawdown_percent?: number | null;
+  max_drawdown_percent?: number;
   profit_factor?: number | null;
   matches_in_period?: number;
   eligible_candidates?: number;
@@ -223,12 +229,15 @@ export type DatasetSweepRequest = {
   persist_runs: boolean;
 };
 
-export type SweepVariantResult = {
-  params: Record<string, unknown>;
+export type SweepResultRow = {
+  parameters: Record<string, unknown>;
+  params?: Record<string, unknown>; // compatibility alias from backend
   run_id?: string | null;
-  roi_percent: number;
-  final_bankroll: number;
+  roi_percent: number | null;
+  final_bankroll: number | null;
   total_bets: number;
+  total_wins?: number | null;
+  total_losses?: number | null;
   max_drawdown_percent?: number | null;
   strike_rate_percent?: number | null;
   profit_factor?: number | null;
@@ -237,6 +246,9 @@ export type SweepVariantResult = {
 };
 
 export type DatasetSweepResponse = {
-  total_variants: number;
-  results: SweepVariantResult[];
+  parameter_names: string[];
+  row_count: number;
+  rows: SweepResultRow[];
+  total_variants?: number; // compatibility alias from backend
+  results?: SweepResultRow[]; // compatibility alias from backend
 };
