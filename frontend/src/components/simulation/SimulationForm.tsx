@@ -48,7 +48,7 @@ function validateCustomPeriods(periods: CustomPeriodDefinition[]): string[] {
 
 const controlStyle: React.CSSProperties = {
   padding: 8,
-  width: "100%",
+  width: "80%",
   minWidth: 0,
 };
 

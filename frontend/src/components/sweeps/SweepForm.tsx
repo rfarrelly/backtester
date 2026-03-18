@@ -137,7 +137,7 @@ export default function SweepForm({
               style={{
                 display: "grid",
                 gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                gap: 12,
+                gap: 30,
                 alignItems: "end",
                 width: "100%",
                 maxWidth: "100%",
@@ -171,7 +171,11 @@ export default function SweepForm({
               </label>
 
               <div style={{ display: "flex", alignItems: "end" }}>
-                <button type="button" onClick={() => removeRow(index)}>
+                <button 
+                  type="button" 
+                  onClick={() => removeRow(index)}
+                  style={{ padding: "8px 12px" }}
+                >
                   Remove
                 </button>
               </div>

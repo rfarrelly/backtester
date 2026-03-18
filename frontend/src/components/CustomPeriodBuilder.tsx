@@ -18,7 +18,7 @@ const DAY_OPTIONS: { value: DayKey; label: string }[] = [
 
 const controlStyle: React.CSSProperties = {
   padding: 8,
-  width: "100%",
+  width: "90%",
   minWidth: 0,
 };
 
@@ -60,7 +60,7 @@ export default function CustomPeriodBuilder({
           key={`custom-period-${index}`}
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
             gap: 8,
             alignItems: "end",
             border: "1px solid #ddd",
