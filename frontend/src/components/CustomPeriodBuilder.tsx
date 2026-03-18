@@ -1,4 +1,4 @@
-import type { CustomPeriodDefinition, DayKey } from "../../types/api";
+import type { CustomPeriodDefinition, DayKey } from "../types/api";
 
 type Props = {
   value: CustomPeriodDefinition[];
@@ -15,6 +15,12 @@ const DAY_OPTIONS: { value: DayKey; label: string }[] = [
   { value: "sat", label: "Saturday" },
   { value: "sun", label: "Sunday" },
 ];
+
+const controlStyle: React.CSSProperties = {
+  padding: 8,
+  width: "100%",
+  minWidth: 0,
+};
 
 function buildEmptyPeriod(): CustomPeriodDefinition {
   return {
@@ -48,33 +54,36 @@ export default function CustomPeriodBuilder({
   }
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
+    <div style={{ display: "grid", gap: 12, width: "100%", minWidth: 0 }}>
       {(value ?? []).map((period, index) => (
         <div
           key={`custom-period-${index}`}
           style={{
             display: "grid",
-            gridTemplateColumns: "minmax(180px, 2fr) minmax(160px, 1fr) minmax(160px, 1fr) auto",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
             gap: 8,
             alignItems: "end",
             border: "1px solid #ddd",
             borderRadius: 8,
             padding: 12,
             background: "#fafafa",
+            width: "100%",
+            maxWidth: "100%",
+            minWidth: 0,
           }}
         >
-          <label style={{ display: "grid", gap: 4 }}>
+          <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
             <span>Name</span>
             <input
               value={period.name}
               onChange={(e) => updatePeriod(index, { name: e.target.value })}
               placeholder="Weekend"
               disabled={disabled}
-              style={{ padding: 8 }}
+              style={controlStyle}
             />
           </label>
 
-          <label style={{ display: "grid", gap: 4 }}>
+          <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
             <span>Start day</span>
             <select
               value={period.start_day}
@@ -84,7 +93,7 @@ export default function CustomPeriodBuilder({
                 })
               }
               disabled={disabled}
-              style={{ padding: 8 }}
+              style={controlStyle}
             >
               {DAY_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -94,7 +103,7 @@ export default function CustomPeriodBuilder({
             </select>
           </label>
 
-          <label style={{ display: "grid", gap: 4 }}>
+          <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
             <span>End day</span>
             <select
               value={period.end_day}
@@ -104,7 +113,7 @@ export default function CustomPeriodBuilder({
                 })
               }
               disabled={disabled}
-              style={{ padding: 8 }}
+              style={controlStyle}
             >
               {DAY_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -114,14 +123,16 @@ export default function CustomPeriodBuilder({
             </select>
           </label>
 
-          <button
-            type="button"
-            onClick={() => removePeriod(index)}
-            disabled={disabled}
-            style={{ padding: "8px 12px" }}
-          >
-            Remove
-          </button>
+          <div style={{ display: "flex", alignItems: "end" }}>
+            <button
+              type="button"
+              onClick={() => removePeriod(index)}
+              disabled={disabled}
+              style={{ padding: "8px 12px" }}
+            >
+              Remove
+            </button>
+          </div>
         </div>
       ))}
 

@@ -14,6 +14,11 @@ type Props = {
 };
 
 const DEFAULT_ROWS: SweepRow[] = [];
+const controlStyle: React.CSSProperties = {
+  padding: 8,
+  width: "100%",
+  minWidth: 0,
+};
 
 export default function SweepForm({
   availableFields,
@@ -106,7 +111,7 @@ export default function SweepForm({
   }
 
   return (
-    <div style={{ display: "grid", gap: 16 }}>
+    <div style={{ display: "grid", gap: 16, width: "100%", minWidth: 0 }}>
       <div style={{ color: "#666", fontSize: 14 }}>
         Define one or more parameter grids to run many variants of the current
         simulation setup.
@@ -125,23 +130,26 @@ export default function SweepForm({
           No sweep fields added yet.
         </div>
       ) : (
-        <div style={{ display: "grid", gap: 12 }}>
+        <div style={{ display: "grid", gap: 12, width: "100%", minWidth: 0 }}>
           {rows.map((row, index) => (
             <div
               key={index}
               style={{
                 display: "grid",
-                gridTemplateColumns: "minmax(220px, 280px) 1fr auto",
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
                 gap: 12,
                 alignItems: "end",
+                width: "100%",
+                maxWidth: "100%",
+                minWidth: 0,
               }}
             >
-              <label style={{ display: "grid", gap: 4 }}>
+              <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
                 <span>Field</span>
                 <select
                   value={row.field}
                   onChange={(e) => updateRow(index, { field: e.target.value })}
-                  style={{ padding: 8 }}
+                  style={controlStyle}
                 >
                   <option value="">-- select field --</option>
                   {fieldOptions.map((field, idx) => (
@@ -152,25 +160,27 @@ export default function SweepForm({
                 </select>
               </label>
 
-              <label style={{ display: "grid", gap: 4 }}>
+              <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
                 <span>Values (comma-separated)</span>
                 <input
                   value={row.values}
                   onChange={(e) => updateRow(index, { values: e.target.value })}
                   placeholder="e.g. 2,4,6 or asc,desc or PPIDiff < 0.05, PPIDiff < 0.1"
-                  style={{ padding: 8 }}
+                  style={controlStyle}
                 />
               </label>
 
-              <button type="button" onClick={() => removeRow(index)}>
-                Remove
-              </button>
+              <div style={{ display: "flex", alignItems: "end" }}>
+                <button type="button" onClick={() => removeRow(index)}>
+                  Remove
+                </button>
+              </div>
             </div>
           ))}
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", minWidth: 0 }}>
         <button type="button" onClick={addRow}>
           Add sweep field
         </button>

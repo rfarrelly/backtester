@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { useParams } from "react-router-dom";
 import {
   getDistinctValues,
@@ -125,6 +132,11 @@ function normalizeRequest(request: SimulationRequest): SimulationRequest {
   }
 
   return normalized;
+}
+
+function formatCellValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "—";
+  return String(value);
 }
 
 export default function DatasetDetailPage() {
@@ -393,9 +405,18 @@ export default function DatasetDetailPage() {
   const sampleRows = data.sample_rows.slice(0, 3);
 
   return (
-    <div style={{ display: "grid", gap: 20, minWidth: 0 }}>
+    <div
+      style={{
+        display: "grid",
+        gap: 20,
+        minWidth: 0,
+        width: "100%",
+        maxWidth: "100%",
+        overflowX: "hidden",
+      }}
+    >
       <SectionPanel title="Dataset overview">
-        <div style={{ display: "grid", gap: 6 }}>
+        <div style={{ display: "grid", gap: 6, minWidth: 0 }}>
           <div>
             <strong>Filename:</strong> {data.filename}
           </div>
@@ -429,7 +450,7 @@ export default function DatasetDetailPage() {
               flexWrap: "wrap",
             }}
           >
-            <div style={{ display: "grid", gap: 6 }}>
+            <div style={{ display: "grid", gap: 6, minWidth: 0 }}>
               <div style={{ fontWeight: 600 }}>Loaded simulator draft</div>
               {loadedDraftInfo.sourceRunId && (
                 <div>
@@ -468,7 +489,15 @@ export default function DatasetDetailPage() {
                 background: "#fafafa",
               }}
             >
-              <div style={{ fontWeight: 600 }}>{col}</div>
+              <div
+                style={{
+                  fontWeight: 600,
+                  overflowWrap: "anywhere",
+                  wordBreak: "break-word",
+                }}
+              >
+                {col}
+              </div>
               <div style={{ fontSize: 12, color: "#666" }}>
                 {data.inferred_types[col] ?? "unknown"}
               </div>
@@ -481,30 +510,7 @@ export default function DatasetDetailPage() {
         {sampleRows.length === 0 ? (
           <div>No sample rows available.</div>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr>
-                  {data.columns.map((col, idx) => (
-                    <th key={`${col}-${idx}`} style={thStyle}>
-                      {col}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {sampleRows.map((row, rowIdx) => (
-                  <tr key={rowIdx}>
-                    {data.columns.map((col, colIdx) => (
-                      <td key={`${col}-${colIdx}`} style={tdStyle}>
-                        {row[col] ?? ""}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <SampleRowsTable columns={data.columns} rows={sampleRows} />
         )}
       </SectionPanel>
 
@@ -562,6 +568,58 @@ export default function DatasetDetailPage() {
   );
 }
 
+function SampleRowsTable({
+  columns,
+  rows,
+}: {
+  columns: string[];
+  rows: Array<Record<string, unknown>>;
+}) {
+  return (
+    <div
+      style={{
+        width: "100%",
+        maxWidth: "100%",
+        overflowX: "auto",
+        overflowY: "hidden",
+        WebkitOverflowScrolling: "touch",
+        border: "1px solid #e5e7eb",
+        borderRadius: 8,
+        background: "#fff",
+      }}
+    >
+      <table
+        style={{
+          borderCollapse: "collapse",
+          width: "max-content",
+          minWidth: "100%",
+        }}
+      >
+        <thead>
+          <tr>
+            {columns.map((col, idx) => (
+              <th key={`${col}-${idx}`} style={sampleThStyle}>
+                {col}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, rowIdx) => (
+            <tr key={rowIdx}>
+              {columns.map((col, colIdx) => (
+                <td key={`${rowIdx}-${col}-${colIdx}`} style={sampleTdStyle}>
+                  {formatCellValue(row[col])}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function SectionPanel({
   title,
   children,
@@ -576,23 +634,30 @@ function SectionPanel({
         borderRadius: 10,
         padding: 16,
         background: "#fff",
+        minWidth: 0,
+        maxWidth: "100%",
+        overflow: "hidden",
       }}
     >
       <h3 style={{ marginTop: 0, marginBottom: 16 }}>{title}</h3>
-      {children}
+      <div style={{ minWidth: 0, maxWidth: "100%" }}>{children}</div>
     </section>
   );
 }
 
-const thStyle: CSSProperties = {
+const sampleThStyle: CSSProperties = {
   textAlign: "left",
   borderBottom: "1px solid #ddd",
-  padding: "8px 12px",
+  padding: "10px 12px",
+  background: "#f8fafc",
+  fontWeight: 700,
+  fontSize: 14,
   whiteSpace: "nowrap",
 };
 
-const tdStyle: CSSProperties = {
+const sampleTdStyle: CSSProperties = {
   borderBottom: "1px solid #eee",
-  padding: "8px 12px",
+  padding: "10px 12px",
+  fontSize: 14,
   whiteSpace: "nowrap",
 };

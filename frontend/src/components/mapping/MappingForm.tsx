@@ -8,6 +8,12 @@ type Props = {
 
 type MappingKey = keyof DatasetMapping;
 
+const controlStyle: React.CSSProperties = {
+  padding: 8,
+  width: "100%",
+  minWidth: 0,
+};
+
 function SelectField({
   label,
   columns,
@@ -22,12 +28,12 @@ function SelectField({
   allowEmpty?: boolean;
 }) {
   return (
-    <label style={{ display: "grid", gap: 4 }}>
+    <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
       <span>{label}</span>
       <select
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value || null)}
-        style={{ padding: 8 }}
+        style={controlStyle}
       >
         {allowEmpty && <option value="">-- none --</option>}
         {columns.map((col, idx) => (
@@ -58,7 +64,7 @@ export default function MappingForm({ columns, value, onChange }: Props) {
   }
 
   return (
-    <div style={{ display: "grid", gap: 20 }}>
+    <div style={{ display: "grid", gap: 20, minWidth: 0 }}>
       <div style={gridStyle}>
         <SelectField
           label="Home team column *"
@@ -91,23 +97,23 @@ export default function MappingForm({ columns, value, onChange }: Props) {
           onChange={(v) => setField("time_col", v)}
         />
 
-        <label style={{ display: "grid", gap: 4 }}>
+        <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
           <span>Date format</span>
           <input
             value={value.date_format ?? ""}
             onChange={(e) => setField("date_format", e.target.value || null)}
             placeholder="%Y-%m-%d"
-            style={{ padding: 8 }}
+            style={controlStyle}
           />
         </label>
 
-        <label style={{ display: "grid", gap: 4 }}>
+        <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
           <span>Time format</span>
           <input
             value={value.time_format ?? ""}
             onChange={(e) => setField("time_format", e.target.value || null)}
             placeholder="%H:%M"
-            style={{ padding: 8 }}
+            style={controlStyle}
           />
         </label>
 
@@ -189,11 +195,12 @@ export default function MappingForm({ columns, value, onChange }: Props) {
         />
       </div>
 
-      <div>
+      <div style={{ minWidth: 0 }}>
         <h4 style={{ marginTop: 0, marginBottom: 8 }}>Feature columns</h4>
         <div style={featureGridStyle}>
           {columns.map((col, idx) => (
-            <label key={`${col}-${idx}`}
+            <label
+              key={`${col}-${idx}`}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -202,6 +209,8 @@ export default function MappingForm({ columns, value, onChange }: Props) {
                 borderRadius: 6,
                 padding: "6px 8px",
                 background: value.feature_cols.includes(col) ? "#eef6ff" : "#fff",
+                minWidth: 0,
+                overflowWrap: "anywhere",
               }}
             >
               <input
@@ -209,7 +218,7 @@ export default function MappingForm({ columns, value, onChange }: Props) {
                 checked={value.feature_cols.includes(col)}
                 onChange={() => toggleFeature(col)}
               />
-              <span>{col}</span>
+              <span style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>{col}</span>
             </label>
           ))}
         </div>
@@ -222,10 +231,16 @@ const gridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
   gap: 12,
+  width: "100%",
+  maxWidth: "100%",
+  minWidth: 0,
 };
 
 const featureGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
   gap: 8,
+  width: "100%",
+  maxWidth: "100%",
+  minWidth: 0,
 };

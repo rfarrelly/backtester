@@ -42,8 +42,24 @@ export default function SweepResultsTable({
   }
 
   return (
-    <div style={{ overflowX: "auto", border: "1px solid #e5e7eb", borderRadius: 10 }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 980 }}>
+    <div
+      style={{
+        width: "100%",
+        maxWidth: "100%",
+        minWidth: 0,
+        overflowX: "auto",
+        border: "1px solid #e5e7eb",
+        borderRadius: 10,
+      }}
+    >
+      <table
+        style={{
+          width: "100%",
+          maxWidth: "100%",
+          borderCollapse: "collapse",
+          tableLayout: "fixed",
+        }}
+      >
         <thead>
           <tr style={{ background: "#f8fafc" }}>
             <th style={thStyle}>Rank</th>
@@ -126,7 +142,10 @@ function SortableHeader({
           cursor: "pointer",
           color: active ? "#0f172a" : "#334155",
           fontWeight: active ? 700 : 600,
-          whiteSpace: "nowrap",
+          whiteSpace: "normal",
+          overflowWrap: "anywhere",
+          wordBreak: "break-word",
+          textAlign: "left",
         }}
       >
         {label}
@@ -140,7 +159,10 @@ const thStyle: CSSProperties = {
   textAlign: "left",
   borderBottom: "1px solid #e5e7eb",
   padding: "10px 12px",
-  whiteSpace: "nowrap",
+  whiteSpace: "normal",
+  overflowWrap: "anywhere",
+  wordBreak: "break-word",
+  verticalAlign: "top",
   fontSize: 13,
 };
 
@@ -149,4 +171,7 @@ const tdStyle: CSSProperties = {
   padding: "10px 12px",
   verticalAlign: "top",
   fontSize: 14,
+  whiteSpace: "normal",
+  overflowWrap: "anywhere",
+  wordBreak: "break-word",
 };

@@ -45,6 +45,13 @@ function validateCustomPeriods(periods: CustomPeriodDefinition[]): string[] {
   return errors;
 }
 
+
+const controlStyle: React.CSSProperties = {
+  padding: 8,
+  width: "100%",
+  minWidth: 0,
+};
+
 export default function SimulationForm({
   value,
   onChange,
@@ -130,15 +137,15 @@ export default function SimulationForm({
   }
 
   return (
-    <div style={{ display: "grid", gap: 16 }}>
+    <div style={{ display: "grid", gap: 16, width: "100%", minWidth: 0 }}>
       <div style={gridStyle}>
         {seasonOptions.length > 0 ? (
-          <label style={{ display: "grid", gap: 4 }}>
+          <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
             <span>Season</span>
             <select
               value={value.season}
               onChange={(e) => setField("season", e.target.value)}
-              style={{ padding: 8 }}
+              style={controlStyle}
             >
               <option value="">-- select season --</option>
               {seasonOptions.map((season, idx) => (
@@ -149,17 +156,17 @@ export default function SimulationForm({
             </select>
           </label>
         ) : (
-          <label style={{ display: "grid", gap: 4 }}>
+          <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
             <span>Season</span>
             <input
               value={value.season}
               onChange={(e) => setField("season", e.target.value)}
-              style={{ padding: 8 }}
+              style={controlStyle}
             />
           </label>
         )}
 
-        <label style={{ display: "grid", gap: 4 }}>
+        <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
           <span>Selection</span>
           <select
             value={value.selection ?? ""}
@@ -169,7 +176,7 @@ export default function SimulationForm({
                 (e.target.value || null) as "H" | "D" | "A" | null
               )
             }
-            style={{ padding: 8 }}
+            style={controlStyle}
           >
             <option value="">-- select --</option>
             <option value="H">H</option>
@@ -178,7 +185,7 @@ export default function SimulationForm({
           </select>
         </label>
 
-        <label style={{ display: "grid", gap: 4 }}>
+        <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
           <span>Staking method</span>
           <select
             value={value.staking_method}
@@ -188,7 +195,7 @@ export default function SimulationForm({
                 e.target.value as SimulationRequest["staking_method"]
               )
             }
-            style={{ padding: 8 }}
+            style={controlStyle}
           >
             <option value="fixed">fixed</option>
             <option value="percent">percent</option>
@@ -197,7 +204,7 @@ export default function SimulationForm({
         </label>
 
         {value.staking_method === "fixed" && (
-          <label style={{ display: "grid", gap: 4 }}>
+          <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
             <span>Fixed stake</span>
             <input
               type="number"
@@ -208,13 +215,13 @@ export default function SimulationForm({
                   e.target.value === "" ? null : Number(e.target.value)
                 )
               }
-              style={{ padding: 8 }}
+              style={controlStyle}
             />
           </label>
         )}
 
         {value.staking_method === "percent" && (
-          <label style={{ display: "grid", gap: 4 }}>
+          <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
             <span>Percent stake</span>
             <input
               type="number"
@@ -226,13 +233,13 @@ export default function SimulationForm({
                   e.target.value === "" ? null : Number(e.target.value)
                 )
               }
-              style={{ padding: 8 }}
+              style={controlStyle}
             />
           </label>
         )}
 
         {value.staking_method === "kelly" && (
-          <label style={{ display: "grid", gap: 4 }}>
+          <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
             <span>Kelly fraction</span>
             <input
               type="number"
@@ -244,12 +251,12 @@ export default function SimulationForm({
                   e.target.value === "" ? null : Number(e.target.value)
                 )
               }
-              style={{ padding: 8 }}
+              style={controlStyle}
             />
           </label>
         )}
 
-        <label style={{ display: "grid", gap: 4 }}>
+        <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
           <span>Starting bankroll</span>
           <input
             type="number"
@@ -257,22 +264,22 @@ export default function SimulationForm({
             onChange={(e) =>
               setField("starting_bankroll", Number(e.target.value))
             }
-            style={{ padding: 8 }}
+            style={controlStyle}
           />
         </label>
 
-        <label style={{ display: "grid", gap: 4 }}>
+        <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
           <span>Multiple legs</span>
           <input
             type="number"
             min={1}
             value={value.multiple_legs}
             onChange={(e) => setField("multiple_legs", Number(e.target.value))}
-            style={{ padding: 8 }}
+            style={controlStyle}
           />
         </label>
 
-        <label style={{ display: "grid", gap: 4 }}>
+        <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
           <span>Min odds</span>
           <input
             type="number"
@@ -284,7 +291,7 @@ export default function SimulationForm({
                 e.target.value === "" ? null : Number(e.target.value)
               )
             }
-            style={{ padding: 8 }}
+            style={controlStyle}
           />
         </label>
       </div>
@@ -298,6 +305,9 @@ export default function SimulationForm({
               display: "grid",
               gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
               gap: 8,
+              width: "100%",
+              maxWidth: "100%",
+              minWidth: 0,
             }}
           >
             {leagueOptions.map((league, idx) => {
@@ -314,6 +324,7 @@ export default function SimulationForm({
                     borderRadius: 6,
                     padding: "6px 8px",
                     background: checked ? "#eef6ff" : "#fff",
+                    minWidth: 0,
                   }}
                 >
                   <input
@@ -321,13 +332,13 @@ export default function SimulationForm({
                     checked={checked}
                     onChange={() => toggleLeague(league)}
                   />
-                  <span>{league}</span>
+                  <span style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>{league}</span>
                 </label>
               );
             })}
           </div>
         ) : (
-          <label style={{ display: "grid", gap: 4 }}>
+          <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
             <span>Leagues (comma-separated)</span>
             <input
               value={(value.leagues ?? []).join(", ")}
@@ -344,7 +355,7 @@ export default function SimulationForm({
                 });
               }}
               placeholder="Premier-League, Championship"
-              style={{ padding: 8 }}
+              style={controlStyle}
             />
           </label>
         )}
@@ -362,7 +373,7 @@ export default function SimulationForm({
 
         {value.walk_forward && (
           <div style={gridStyle}>
-            <label style={{ display: "grid", gap: 4 }}>
+            <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
               <span>Train window matches</span>
               <input
                 type="number"
@@ -373,11 +384,11 @@ export default function SimulationForm({
                     e.target.value === "" ? null : Number(e.target.value)
                   )
                 }
-                style={{ padding: 8 }}
+                style={controlStyle}
               />
             </label>
 
-            <label style={{ display: "grid", gap: 4 }}>
+            <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
               <span>Test window matches</span>
               <input
                 type="number"
@@ -388,11 +399,11 @@ export default function SimulationForm({
                     e.target.value === "" ? null : Number(e.target.value)
                   )
                 }
-                style={{ padding: 8 }}
+                style={controlStyle}
               />
             </label>
 
-            <label style={{ display: "grid", gap: 4 }}>
+            <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
               <span>Step matches</span>
               <input
                 type="number"
@@ -403,7 +414,7 @@ export default function SimulationForm({
                     e.target.value === "" ? null : Number(e.target.value)
                   )
                 }
-                style={{ padding: 8 }}
+                style={controlStyle}
               />
             </label>
           </div>
@@ -413,14 +424,14 @@ export default function SimulationForm({
       <div style={{ display: "grid", gap: 12 }}>
         <strong>Calendar betting mode</strong>
 
-        <label style={{ display: "grid", gap: 4 }}>
+        <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
           <span>Period mode</span>
           <select
             value={value.period_mode ?? "none"}
             onChange={(e) =>
               handlePeriodModeChange(e.target.value as "none" | "custom")
             }
-            style={{ padding: 8, maxWidth: 320 }}
+            style={{ ...controlStyle, maxWidth: 320 }}
           >
             <option value="none">none</option>
             <option value="custom">custom weekly periods</option>
@@ -452,7 +463,7 @@ export default function SimulationForm({
             )}
 
             <div style={gridStyle}>
-              <label style={{ display: "grid", gap: 4 }}>
+              <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
                 <span>Max candidates per period</span>
                 <input
                   type="number"
@@ -464,16 +475,16 @@ export default function SimulationForm({
                       e.target.value === "" ? null : Number(e.target.value)
                     )
                   }
-                  style={{ padding: 8 }}
+                  style={controlStyle}
                 />
               </label>
 
-              <label style={{ display: "grid", gap: 4 }}>
+              <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
                 <span>Rank by</span>
                 <select
                   value={value.rank_by ?? ""}
                   onChange={(e) => setField("rank_by", e.target.value || null)}
-                  style={{ padding: 8 }}
+                  style={controlStyle}
                 >
                   <option value="">-- none --</option>
                   {rankFieldOptions.map((field, idx) => (
@@ -484,14 +495,14 @@ export default function SimulationForm({
                 </select>
               </label>
 
-              <label style={{ display: "grid", gap: 4 }}>
+              <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
                 <span>Rank order</span>
                 <select
                   value={value.rank_order ?? "asc"}
                   onChange={(e) =>
                     setField("rank_order", e.target.value as "asc" | "desc")
                   }
-                  style={{ padding: 8 }}
+                  style={controlStyle}
                 >
                   <option value="asc">ascending</option>
                   <option value="desc">descending</option>
@@ -554,4 +565,7 @@ const gridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
   gap: 12,
+  width: "100%",
+  maxWidth: "100%",
+  minWidth: 0,
 };
