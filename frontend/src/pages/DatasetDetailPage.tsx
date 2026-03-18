@@ -90,7 +90,7 @@ function normalizeRequest(request: SimulationRequest): SimulationRequest {
     leagues: request.leagues ?? [],
     rule_expression:
       request.rule_expression && request.rule_expression.trim().length > 0
-        ? request.rule_expression.trim()
+        ? request.rule_expression
         : null,
     min_odds: request.min_odds ?? null,
     train_window_matches: request.train_window_matches ?? null,
