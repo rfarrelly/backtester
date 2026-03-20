@@ -18,6 +18,16 @@ export type LoginResponse = {
   token_type: string;
 };
 
+export type RegisterRequest = {
+  email: string;
+  password: string;
+};
+
+export type UserOut = {
+  id: string;
+  email: string;
+};
+
 export type DatasetSummary = {
   dataset_id: string;
   filename: string;

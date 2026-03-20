@@ -1,21 +1,18 @@
-import { apiFetch, setAccessToken, clearAccessToken } from "./client";
-import type { LoginResponse } from "../../../src/types/api";
+import { apiFetch, clearAccessToken, getApiBaseUrl, setAccessToken } from "./client";
+import type { LoginResponse, RegisterRequest, UserOut } from "../types/api";
 
 export async function login(email: string, password: string): Promise<LoginResponse> {
   const form = new URLSearchParams();
   form.set("username", email);
   form.set("password", password);
 
-  const response = await fetch(
-    `${import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000"}/login`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: form.toString(),
-    }
-  );
+  const response = await fetch(`${getApiBaseUrl()}/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: form.toString(),
+  });
 
   if (!response.ok) {
     let message = `HTTP ${response.status}`;
@@ -31,6 +28,13 @@ export async function login(email: string, password: string): Promise<LoginRespo
   const data = (await response.json()) as LoginResponse;
   setAccessToken(data.access_token);
   return data;
+}
+
+export async function register(payload: RegisterRequest): Promise<UserOut> {
+  return apiFetch<UserOut>("/register", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export function logout(): void {

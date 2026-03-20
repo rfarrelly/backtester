@@ -1,31 +1,36 @@
 import { useState, type FormEvent } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import { login } from "../api/auth";
+import { Link, useNavigate } from "react-router-dom";
+import { register } from "../api/auth";
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const navigate = useNavigate();
-  const location = useLocation() as {
-    state?: { from?: { pathname?: string }; registered?: boolean; email?: string };
-  };
 
-  const [email, setEmail] = useState(location.state?.email ?? "");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const registered = Boolean(location.state?.registered);
-
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setSubmitting(true);
     setError(null);
 
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    setSubmitting(true);
+
     try {
-      await login(email, password);
-      const next = location.state?.from?.pathname || "/datasets";
-      navigate(next, { replace: true });
+      await register({ email, password });
+      navigate("/login", {
+        replace: true,
+        state: { registered: true, email },
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      setError(err instanceof Error ? err.message : "Registration failed");
     } finally {
       setSubmitting(false);
     }
@@ -43,7 +48,7 @@ export default function LoginPage() {
       <form
         onSubmit={handleSubmit}
         style={{
-          width: 360,
+          width: 380,
           display: "grid",
           gap: 12,
           border: "1px solid #ddd",
@@ -53,21 +58,7 @@ export default function LoginPage() {
           background: "#fff",
         }}
       >
-        <h2 style={{ margin: 0 }}>Sign in</h2>
-
-        {registered && (
-          <div
-            style={{
-              background: "#eef6ff",
-              border: "1px solid #cfe3ff",
-              borderRadius: 6,
-              padding: 10,
-              fontSize: 14,
-            }}
-          >
-            Account created successfully. Please sign in.
-          </div>
-        )}
+        <h2 style={{ margin: 0 }}>Create account</h2>
 
         <label style={{ display: "grid", gap: 4 }}>
           <span>Email</span>
@@ -91,14 +82,25 @@ export default function LoginPage() {
           />
         </label>
 
+        <label style={{ display: "grid", gap: 4 }}>
+          <span>Confirm password</span>
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+            style={{ padding: 8 }}
+          />
+        </label>
+
         {error && <div style={{ color: "#b00020", fontSize: 14 }}>{error}</div>}
 
         <button type="submit" disabled={submitting} style={{ padding: 10 }}>
-          {submitting ? "Signing in..." : "Sign in"}
+          {submitting ? "Creating account..." : "Register"}
         </button>
 
         <div style={{ fontSize: 14 }}>
-          Don&apos;t have an account? <Link to="/register">Register</Link>
+          Already have an account? <Link to="/login">Sign in</Link>
         </div>
       </form>
     </div>

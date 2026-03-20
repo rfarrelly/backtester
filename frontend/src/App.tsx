@@ -1,12 +1,15 @@
-import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
 import DatasetsPage from "./pages/DatasetsPage";
 import DatasetDetailPage from "./pages/DatasetDetailPage";
 import RunsPage from "./pages/RunsPage";
 import RunDetailPage from "./pages/RunDetailPage";
 import { getAccessToken } from "./api/client";
+import { logout } from "./api/auth";
+import type { ReactNode } from "react";
 
-function RequireAuth({ children }: { children: React.ReactNode }) {
+function RequireAuth({ children }: { children: ReactNode }) {
   const token = getAccessToken();
   const location = useLocation();
 
@@ -17,7 +20,14 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function Layout({ children }: { children: React.ReactNode }) {
+function Layout({ children }: { children: ReactNode }) {
+  const navigate = useNavigate();
+
+  function handleLogout() {
+    logout();
+    navigate("/login", { replace: true });
+  }
+
   return (
     <div
       style={{
@@ -26,7 +36,6 @@ function Layout({ children }: { children: React.ReactNode }) {
         margin: "0 auto",
         padding: 16,
         width: "100%",
-        minWidth: 0,
         boxSizing: "border-box",
       }}
     >
@@ -35,21 +44,21 @@ function Layout({ children }: { children: React.ReactNode }) {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          flexWrap: "wrap",
-          gap: 12,
           marginBottom: 24,
           paddingBottom: 12,
           borderBottom: "1px solid #ddd",
-          minWidth: 0,
+          gap: 16,
+          flexWrap: "wrap",
         }}
       >
-        <h1 style={{ margin: 0, fontSize: 24, minWidth: 0 }}>Backtester</h1>
-        <nav style={{ display: "flex", gap: 12, flexWrap: "wrap", minWidth: 0 }}>
+        <h1 style={{ margin: 0, fontSize: 24 }}>Backtester</h1>
+        <nav style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <Link to="/datasets">Datasets</Link>
           <Link to="/runs">Runs</Link>
+          <button onClick={handleLogout}>Logout</button>
         </nav>
       </header>
-      <div style={{ width: "100%", minWidth: 0 }}>{children}</div>
+      {children}
     </div>
   );
 }
@@ -58,6 +67,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
 
       <Route
         path="/datasets"

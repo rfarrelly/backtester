@@ -5,13 +5,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import app.infrastructure.db.models  # noqa: F401
 from api.routes import auth, data, datasets, rules, runs, simulation, users
-from app.infrastructure.db.base import Base
-from app.infrastructure.db.session import engine
+from app.core.settings import settings
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
+    # Intentionally no Base.metadata.create_all(bind=engine) here.
+    # Schema management should be handled via migrations.
     yield
 
 
@@ -19,7 +19,7 @@ app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # Vite dev server
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -28,7 +28,10 @@ app.add_middleware(
 
 @app.get("/")
 def health_check():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "environment": settings.app_env,
+    }
 
 
 app.include_router(rules.router)
