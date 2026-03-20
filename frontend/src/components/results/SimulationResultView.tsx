@@ -14,31 +14,55 @@ type Props = {
   result: SimulationResult | null;
 };
 
+type EquityChartMode = "settledDate" | "betNumber";
+
 type EquityChartPoint = {
-  index: number;
+  xLabel: string;
+  settledAt: string;
+  betNumber: number;
   bankroll: number;
-  label: string;
 };
 
 export default function SimulationResultView({ result }: Props) {
   const [expandedBetIndex, setExpandedBetIndex] = useState<number | null>(null);
+  const [chartMode, setChartMode] = useState<EquityChartMode>("settledDate");
 
   const equityData = useMemo<EquityChartPoint[]>(() => {
-    if (!result?.equity_curve || result.equity_curve.length === 0) {
+    if (!result?.bets || result.bets.length === 0) {
       return [];
     }
 
-    return result.equity_curve.map((point, index) => ({
-      index,
-      bankroll: point.bankroll,
-      label:
-        point.t ??
-        (point.period_label
-          ? `${point.period_label} #${(point.period_index ?? 0) + 1}`
-          : point.segment_index != null
-          ? `Segment ${point.segment_index + 1}`
-          : `Point ${index + 1}`),
-    }));
+    const sortedBets = [...result.bets].sort((a, b) => {
+      const aTime = a.settled_at ? new Date(a.settled_at).getTime() : 0;
+      const bTime = b.settled_at ? new Date(b.settled_at).getTime() : 0;
+      return aTime - bTime;
+    });
+
+    const totalProfit = sortedBets.reduce(
+      (sum, bet) => sum + (bet.profit ?? 0),
+      0
+    );
+
+    const startingBankroll = result.final_bankroll - totalProfit;
+
+    let runningBankroll = startingBankroll;
+
+    return sortedBets.map((bet, index) => {
+      runningBankroll += bet.profit ?? 0;
+
+      const settledAt = bet.settled_at ?? `Bet ${index + 1}`;
+      const date = bet.settled_at ? new Date(bet.settled_at) : null;
+      const xLabel = date && !Number.isNaN(date.getTime())
+        ? date.toLocaleDateString()
+        : `Bet ${index + 1}`;
+
+      return {
+        xLabel,
+        settledAt,
+        betNumber: index + 1,
+        bankroll: Number(runningBankroll.toFixed(2)),
+      };
+    });
   }, [result]);
 
   if (!result) {
@@ -94,16 +118,47 @@ export default function SimulationResultView({ result }: Props) {
       </section>
 
       <section>
-        <h4 style={{ marginTop: 0 }}>Equity curve</h4>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+            flexWrap: "wrap",
+            marginBottom: 8,
+          }}
+        >
+          <h4 style={{ marginTop: 0, marginBottom: 0 }}>Equity curve</h4>
+
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            <span style={{ fontSize: 14, color: "#666" }}>X-axis</span>
+            <select
+              value={chartMode}
+              onChange={(e) => setChartMode(e.target.value as EquityChartMode)}
+              style={{ padding: 8 }}
+            >
+              <option value="settledDate">By settled date</option>
+              <option value="betNumber">By bet number</option>
+            </select>
+          </div>
+        </div>
+
         {equityData.length === 0 ? (
           <div>No equity curve available.</div>
         ) : (
           <div
             style={{
               width: "100%",
-              maxWidth: "100%",
+              maxWidth: "68%",
               minWidth: 0,
-              height: 320,
+              height: 400,
               border: "1px solid #ddd",
               borderRadius: 8,
               padding: 12,
@@ -116,18 +171,21 @@ export default function SimulationResultView({ result }: Props) {
               <LineChart data={equityData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
-                  dataKey="index"
-                  tickFormatter={(value) => String(Number(value) + 1)}
+                  dataKey={chartMode === "settledDate" ? "xLabel" : "betNumber"}
+                  minTickGap={24}
                 />
                 <YAxis domain={["auto", "auto"]} />
                 <Tooltip
                   formatter={(value) => [value ?? "-", "Bankroll"]}
-                  labelFormatter={(label) => {
-                    if (typeof label !== "number") {
+                  labelFormatter={(label, payload) => {
+                    const point = payload?.[0]?.payload as EquityChartPoint | undefined;
+                    if (!point) {
                       return String(label ?? "");
                     }
-                    const point = equityData[label];
-                    return point ? point.label : `Point ${label + 1}`;
+
+                    return chartMode === "settledDate"
+                      ? `${point.settledAt} • Bet ${point.betNumber}`
+                      : `Bet ${point.betNumber} • ${point.settledAt}`;
                   }}
                 />
                 <Line type="monotone" dataKey="bankroll" strokeWidth={2} dot={false} />

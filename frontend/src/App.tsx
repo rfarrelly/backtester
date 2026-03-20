@@ -19,24 +19,37 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
 function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ fontFamily: "system-ui, sans-serif", maxWidth: 1200, margin: "0 auto", padding: 16, width: "100%", boxSizing: "border-box"}}>
+    <div
+      style={{
+        fontFamily: "system-ui, sans-serif",
+        maxWidth: 1200,
+        margin: "0 auto",
+        padding: 16,
+        width: "100%",
+        minWidth: 0,
+        boxSizing: "border-box",
+      }}
+    >
       <header
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
+          flexWrap: "wrap",
+          gap: 12,
           marginBottom: 24,
           paddingBottom: 12,
           borderBottom: "1px solid #ddd",
+          minWidth: 0,
         }}
       >
-        <h1 style={{ margin: 0, fontSize: 24 }}>Backtester</h1>
-        <nav style={{ display: "flex", gap: 12 }}>
+        <h1 style={{ margin: 0, fontSize: 24, minWidth: 0 }}>Backtester</h1>
+        <nav style={{ display: "flex", gap: 12, flexWrap: "wrap", minWidth: 0 }}>
           <Link to="/datasets">Datasets</Link>
           <Link to="/runs">Runs</Link>
         </nav>
       </header>
-      {children}
+      <div style={{ width: "100%", minWidth: 0 }}>{children}</div>
     </div>
   );
 }
