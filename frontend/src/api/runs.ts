@@ -1,5 +1,5 @@
 import { apiFetch, getApiBaseUrl, getAccessToken } from "./client";
-import type { RunDetail, RunSummary } from "../../../src/types/api";
+import type { RunDetail, RunSummary } from "../../src/types/api";
 
 export async function listRuns(): Promise<RunSummary[]> {
   return apiFetch<RunSummary[]>("/runs");

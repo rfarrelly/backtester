@@ -1,5 +1,5 @@
 import { apiFetch } from "./client";
-import type { RuleValidateRequest, RuleValidateResponse } from "../../../src/types/api";
+import type { RuleValidateRequest, RuleValidateResponse } from "../../src/types/api";
 
 export async function validateRule(
   payload: RuleValidateRequest

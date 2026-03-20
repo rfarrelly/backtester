@@ -4,7 +4,7 @@ import type {
   DatasetSimulateRequest,
   DatasetSummary,
   SimulationResult,
-} from "../../../src/types/api";
+} from "../../src/types/api";
 
 export async function listDatasets(): Promise<DatasetSummary[]> {
   return apiFetch<DatasetSummary[]>("/datasets");
