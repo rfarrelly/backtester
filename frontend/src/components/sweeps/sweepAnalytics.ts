@@ -13,6 +13,10 @@ export type SweepMetricField =
 export type SweepSortField = SweepMetricField | `parameter:${string}`;
 export type SweepSortDirection = "asc" | "desc";
 
+function isParameterSortField(sortBy: SweepSortField): sortBy is `parameter:${string}` {
+  return sortBy.startsWith("parameter:");
+}
+
 export function getSweepRows(result: DatasetSweepResponse | null): SweepResultRow[] {
   if (!result) return [];
   if (Array.isArray(result.rows)) return result.rows;
@@ -45,34 +49,53 @@ export function sortSweepRows(
 }
 
 function compareRows(a: SweepResultRow, b: SweepResultRow, sortBy: SweepSortField): number {
-  if (sortBy.startsWith("parameter:")) {
+  if (isParameterSortField(sortBy)) {
     const key = sortBy.slice("parameter:".length);
     const aValue = getParameterValue(a, key);
     const bValue = getParameterValue(b, key);
     return compareUnknown(aValue, bValue);
   }
 
-  const aValue = a[sortBy];
-  const bValue = b[sortBy];
+  const aValue = getMetricValue(a, sortBy);
+  const bValue = getMetricValue(b, sortBy);
 
   if (aValue == null && bValue == null) return 0;
   if (aValue == null) return 1;
   if (bValue == null) return -1;
 
-  if (typeof aValue === "number" && typeof bValue === "number") {
-    if (sortBy === "max_drawdown_percent") {
-      return aValue - bValue;
-    }
-    return aValue - bValue;
-  }
+  return aValue - bValue;
+}
 
-  return compareUnknown(aValue, bValue);
+function getMetricValue(row: SweepResultRow, field: SweepMetricField): number | null | undefined {
+  switch (field) {
+    case "roi_percent":
+      return row.roi_percent;
+    case "total_profit":
+      return row.total_profit;
+    case "total_bets":
+      return row.total_bets;
+    case "strike_rate_percent":
+      return row.strike_rate_percent;
+    case "max_drawdown_percent":
+      return row.max_drawdown_percent;
+    case "profit_factor":
+      return row.profit_factor;
+    case "final_bankroll":
+      return row.final_bankroll;
+    case "average_odds":
+      return row.average_odds;
+    default:
+      return null;
+  }
 }
 
 function compareUnknown(a: unknown, b: unknown): number {
   const aString = String(a ?? "");
   const bString = String(b ?? "");
-  return aString.localeCompare(bString, undefined, { numeric: true, sensitivity: "base" });
+  return aString.localeCompare(bString, undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
 }
 
 export function getParameterValue(row: SweepResultRow, key: string): unknown {
@@ -112,7 +135,7 @@ function getBestRow(
   direction: SweepSortDirection
 ): SweepResultRow | null {
   const sorted = sortSweepRows(
-    rows.filter((row) => row[field] != null),
+    rows.filter((row) => getMetricValue(row, field) != null),
     field,
     direction
   );

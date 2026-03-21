@@ -33,7 +33,7 @@ services:
       - postgres
       - redis
     volumes:
-      - ./app:/app/app
+      - .:/app
 
   worker:
     build:
